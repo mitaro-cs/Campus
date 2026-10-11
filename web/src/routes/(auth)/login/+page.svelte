@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { safeNext } from '$lib/auth/next';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onDestroy, onMount } from 'svelte';
@@ -40,10 +41,7 @@
 	let canPasskey = $state(false);
 	let keyBusy = $state(false);
 
-	const next = $derived.by(() => {
-		const n = page.url.searchParams.get('next');
-		return n && /^\/(?![/\\])/.test(n) ? n : '/';
-	});
+	const next = $derived(safeNext(page.url.searchParams.get('next'), page.url.origin));
 
 	onMount(async () => {
 		accounts = knownAccounts();

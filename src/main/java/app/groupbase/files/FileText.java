@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -40,6 +41,14 @@ public class FileText {
 
   /** Одна часть архива docx/pptx – не больше (защита от «zip-бомбы»). */
   static final int MAX_ENTRY = 20 * 1024 * 1024;
+
+  /**
+   * Все нужные части архива вместе – не больше (аудит 1.0.2): тысяча слайдов по 20 МБ иначе съела
+   * бы память сервера.
+   */
+  static final long MAX_TOTAL = 64L * 1024 * 1024;
+
+  static final int MAX_PARTS = 2000;
 
   static final int BATCH = 10;
 
@@ -231,7 +240,9 @@ public class FileText {
   }
 
   private static String pdf(byte[] data) throws IOException {
-    try (PDDocument doc = Loader.loadPDF(data)) {
+    // Буферы PDF – во временных файлах, а не в памяти: странный PDF не съест память сервера.
+    try (PDDocument doc =
+        Loader.loadPDF(data, "", null, null, IOUtils.createTempFileOnlyStreamCache())) {
       PDFTextStripper s = new PDFTextStripper();
       s.setSortByPosition(true);
       s.setEndPage(Math.min(doc.getNumberOfPages(), MAX_PAGES));
@@ -244,12 +255,17 @@ public class FileText {
       throws IOException {
     record Part(String name, String xml) {}
     List<Part> parts = new ArrayList<>();
+    long total = 0;
     try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(data))) {
       ZipEntry e;
-      while ((e = zip.getNextEntry()) != null) {
+      while ((e = zip.getNextEntry()) != null && parts.size() < MAX_PARTS) {
         if (!e.isDirectory() && want.test(e.getName())) {
-          byte[] b = zip.readNBytes(MAX_ENTRY);
+          byte[] b = zip.readNBytes((int) Math.min(MAX_ENTRY, MAX_TOTAL - total));
+          total += b.length;
           parts.add(new Part(e.getName(), new String(b, StandardCharsets.UTF_8)));
+          if (total >= MAX_TOTAL) {
+            break;
+          }
         }
       }
     }

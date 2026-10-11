@@ -259,4 +259,34 @@ class SearchIT extends IntegrationTest {
             .get("items");
     assertThat(onlyPhys.size()).isZero();
   }
+
+  @Test
+  void oddQueriesNeverBreakTheSearch() {
+    // Аудит 1.0.2: синтаксис FTS5 в запросе человека – только текст, сервер не падает.
+    var a = admin();
+    for (String q :
+        List.of(
+            "\"",
+            "\"\"\"",
+            "*",
+            "-",
+            "--x",
+            "-\"",
+            "(",
+            ")",
+            "NEAR(a b)",
+            "a OR b AND NOT c",
+            "title:x",
+            "^x",
+            "{a b}",
+            "x\u0000y",
+            "' OR 1=1 --",
+            "a".repeat(5000))) {
+      var r =
+          a.get(
+              "/api/search?q="
+                  + java.net.URLEncoder.encode(q, java.nio.charset.StandardCharsets.UTF_8));
+      assertThat(r.status()).as(q.length() > 40 ? "длинный запрос" : q).isIn(200, 400);
+    }
+  }
 }

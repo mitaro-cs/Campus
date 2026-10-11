@@ -41,6 +41,154 @@ class GroupIsolationIT extends IntegrationTest {
     assertThat(studentA.api().get("/api/groups").json().size()).isEqualTo(1);
   }
 
+  /**
+   * Аудит 1.0.2: всё содержимое группы B – предметы, задания, новости, материалы, файлы, пары,
+   * архивы, реакции и комментарии – недоступно участнику группы A ни на чтение, ни на изменение, и
+   * не просачивается в поиск, офлайн-копию и «кто на сайте».
+   */
+  @Test
+  void contentOfAnotherGroupIsNeitherVisibleNorChangeable() {
+    long a = newGroup("Изоляция A");
+    long b = newGroup("Изоляция B");
+    TestUser headmanB = newUser(b, "headman");
+    TestUser outsider = newUser(a, "headman");
+    ApiClient hb = headmanB.api();
+    ApiClient x = outsider.api();
+
+    long subject =
+        hb.post("/api/groups/" + b + "/subjects", Map.of("name", "Секретный предмет"))
+            .json()
+            .get("id")
+            .asLong();
+    long hw =
+        hb.post(
+                "/api/homework",
+                Map.of(
+                    "subjectId",
+                    subject,
+                    "title",
+                    "Секретное задание",
+                    "dueAt",
+                    clock.millis() + 86_400_000L))
+            .json()
+            .get("id")
+            .asLong();
+    long news =
+        hb.post(
+                "/api/news",
+                Map.of("groupIds", List.of(b), "title", "Секретная новость", "body", "текст"))
+            .json()
+            .get("id")
+            .asLong();
+    long file =
+        hb.upload("секрет.txt", "секретное содержимое".getBytes()).json().get("id").asLong();
+    long material =
+        hb.post(
+                "/api/subjects/" + subject + "/materials",
+                Map.of("kind", "file", "fileId", file, "title", "Секретный конспект"))
+            .json()
+            .get("id")
+            .asLong();
+    long comment =
+        hb.post("/api/news/" + news + "/comments", Map.of("body", "Секретный комментарий"))
+            .json()
+            .get("id")
+            .asLong();
+    long semester =
+        hb.post("/api/groups/" + b + "/semesters", Map.of("name", "Архив B", "manual", true))
+            .json()
+            .get("id")
+            .asLong();
+
+    // Чтение: ни по номеру, ни списком.
+    for (String path :
+        List.of(
+            "/api/subjects/" + subject,
+            "/api/subjects/" + subject + "/materials",
+            "/api/homework/" + hw,
+            "/api/homework/" + hw + "/comments",
+            "/api/news/" + news,
+            "/api/news/" + news + "/comments",
+            "/api/materials/" + material,
+            "/api/files/" + file,
+            "/api/files/" + file + "/html",
+            "/api/groups/" + b + "/semesters")) {
+      assertThat(x.get(path).status()).as(path).isIn(403, 404);
+    }
+    for (String path :
+        List.of(
+            "/api/subjects",
+            "/api/homework",
+            "/api/news",
+            "/api/materials/recent",
+            "/api/today",
+            "/api/sync",
+            "/api/search?q=Секретн",
+            "/api/presence")) {
+      var r = x.get(path);
+      assertThat(r.status()).as(path).isEqualTo(200);
+      assertThat(r.body())
+          .as(path)
+          .doesNotContain("Секретный предмет")
+          .doesNotContain("Секретное задание")
+          .doesNotContain("Секретная новость")
+          .doesNotContain("Секретный конспект")
+          .doesNotContain("Секретный комментарий")
+          .doesNotContain("секретное содержимое")
+          .doesNotContain(headmanB.username());
+    }
+
+    // Изменение и удаление – тоже нет.
+    assertThat(x.patch("/api/subjects/" + subject, Map.of("name", "Взлом")).status())
+        .isIn(403, 404);
+    assertThat(x.patch("/api/homework/" + hw, Map.of("title", "Взлом")).status()).isIn(403, 404);
+    assertThat(x.put("/api/homework/" + hw + "/done", Map.of("value", true)).status())
+        .isIn(403, 404);
+    assertThat(x.patch("/api/news/" + news, Map.of("title", "Взлом")).status()).isIn(403, 404);
+    assertThat(
+            x.put("/api/news/" + news + "/reactions", Map.of("emoji", "👍", "value", true))
+                .status())
+        .isIn(403, 404);
+    assertThat(x.post("/api/news/" + news + "/comments", Map.of("body", "чужой")).status())
+        .isIn(403, 404);
+    assertThat(x.put("/api/comments/" + comment + "/hidden", Map.of("value", true)).status())
+        .isIn(403, 404);
+    assertThat(x.delete("/api/comments/" + comment).status()).isIn(403, 404);
+    assertThat(x.patch("/api/materials/" + material, Map.of("title", "Взлом")).status())
+        .isIn(403, 404);
+    assertThat(
+            x.post(
+                    "/api/subjects/" + subject + "/materials",
+                    Map.of("kind", "note", "description", "чужое"))
+                .status())
+        .isIn(403, 404);
+    assertThat(x.patch("/api/semesters/" + semester, Map.of("name", "Взлом")).status())
+        .isIn(403, 404);
+    assertThat(x.post("/api/semesters/" + semester + "/subjects", Map.of("name", "Взлом")).status())
+        .isIn(403, 404);
+    assertThat(x.delete("/api/semesters/" + semester).status()).isIn(403, 404);
+    assertThat(x.delete("/api/materials/" + material).status()).isIn(403, 404);
+    assertThat(x.delete("/api/news/" + news).status()).isIn(403, 404);
+    assertThat(x.delete("/api/homework/" + hw).status()).isIn(403, 404);
+    assertThat(x.delete("/api/subjects/" + subject).status()).isIn(403, 404);
+    // Чужой загруженный файл нельзя прицепить к своему: файл должен быть своим.
+    long own =
+        x.post("/api/groups/" + a + "/subjects", Map.of("name", "Свой")).json().get("id").asLong();
+    assertThat(
+            x.post(
+                    "/api/subjects/" + own + "/materials",
+                    Map.of("kind", "file", "fileId", file, "title", "Украденный"))
+                .status())
+        .isIn(400, 403, 404, 409);
+
+    // Всё на месте.
+    assertThat(hb.get("/api/subjects/" + subject).json().get("name").asString())
+        .isEqualTo("Секретный предмет");
+    assertThat(hb.get("/api/homework/" + hw).status()).isEqualTo(200);
+    assertThat(hb.get("/api/news/" + news).status()).isEqualTo(200);
+    assertThat(hb.get("/api/files/" + file).status()).isEqualTo(200);
+  }
+
   @Test
   void studentsHaveNoManagementRights() {
     long a = newGroup("Студенты");
