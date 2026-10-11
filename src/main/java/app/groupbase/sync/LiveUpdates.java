@@ -2,6 +2,7 @@ package app.groupbase.sync;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,7 +27,7 @@ public class LiveUpdates implements DisposableBean, SmartLifecycle {
   /** Пустая строка раз в 25 секунд: прокси и туннели не закрывают молчащее соединение. */
   static final long PING_MS = 25_000;
 
-  private record Client(long userId, SseEmitter emitter) {}
+  private record Client(long userId, SseEmitter emitter, long since, boolean local) {}
 
   private final JdbcClient db;
   private final Set<Client> clients = ConcurrentHashMap.newKeySet();
@@ -44,6 +45,11 @@ public class LiveUpdates implements DisposableBean, SmartLifecycle {
    */
   private final Map<Long, Long> polledAt = new ConcurrentHashMap<>();
 
+  private final Map<Long, Long> localPolledAt = new ConcurrentHashMap<>();
+
+  /** Потоков событий на человека: телефон, компьютер, несколько вкладок – с запасом. */
+  static final int MAX_STREAMS = 8;
+
   /** Сколько после последнего вопроса человек ещё считается на сайте (спрашивают раз в 3 с). */
   static final long POLL_ONLINE_MS = 15_000;
 
@@ -56,17 +62,64 @@ public class LiveUpdates implements DisposableBean, SmartLifecycle {
 
   /** Подписка страницы: сразу «hello» с номером — по нему видно, что поток доходит. */
   public SseEmitter subscribe(long userId) {
+    return subscribe(userId, false);
+  }
+
+  /**
+   * @param local окно на компьютере хоста: для «тихого» времени обновления (1.0.2) оно не считается
+   *     – на сайте никого нет, даже если окно открыто
+   */
+  public SseEmitter subscribe(long userId, boolean local) {
     if (lastSeq < 0) {
       lastSeq = maxSeq();
     }
+    // Не больше MAX_STREAMS потоков на человека (аудит 1.0.2): иначе один аккаунт мог бы занять
+    // соединения сервера бесконечными вкладками. Лишние – самые старые – закрываются.
+    List<Client> mine =
+        clients.stream()
+            .filter(x -> x.userId() == userId)
+            .sorted(java.util.Comparator.comparingLong(Client::since))
+            .toList();
+    for (int i = 0; i <= mine.size() - MAX_STREAMS; i++) {
+      Client old = mine.get(i);
+      clients.remove(old);
+      try {
+        old.emitter().complete();
+      } catch (RuntimeException ex) {
+        // Уже закрыт.
+      }
+    }
     SseEmitter emitter = new SseEmitter(0L);
-    Client c = new Client(userId, emitter);
+    Client c = new Client(userId, emitter, System.nanoTime(), local);
     clients.add(c);
     emitter.onCompletion(() -> clients.remove(c));
     emitter.onTimeout(() -> clients.remove(c));
     emitter.onError(ex -> clients.remove(c));
     send(c, "hello", seq(lastSeq));
     return emitter;
+  }
+
+  /** Сколько потоков открыто у человека (для проверок). */
+  int streamsOf(long userId) {
+    return (int) clients.stream().filter(x -> x.userId() == userId).count();
+  }
+
+  /** Сервер вот-вот остановится ради обновления или перезапуска и скоро вернётся (1.0.2). */
+  private volatile boolean restarting;
+
+  /**
+   * Всем открытым страницам – «сейчас перезапуск»: вместо «Сервер не работает» они покажут «Campus
+   * обновляется», изменения поставят в очередь и сами вернутся на новую версию.
+   */
+  public void restarting() {
+    restarting = true;
+    for (Client c : clients) {
+      send(c, "restarting", "{}");
+    }
+  }
+
+  public boolean isRestarting() {
+    return restarting;
   }
 
   /** Новые уведомления — этим людям: колокольчик обновится сразу. */
@@ -151,7 +204,11 @@ public class LiveUpdates implements DisposableBean, SmartLifecycle {
    * сменился.
    */
   public long current(long userId) {
-    polledAt.put(userId, System.currentTimeMillis());
+    return current(userId, false);
+  }
+
+  public long current(long userId, boolean local) {
+    (local ? localPolledAt : polledAt).put(userId, System.currentTimeMillis());
     return maxSeq();
   }
 
@@ -162,13 +219,23 @@ public class LiveUpdates implements DisposableBean, SmartLifecycle {
   public Set<Long> online() {
     long since = System.currentTimeMillis() - POLL_ONLINE_MS;
     polledAt.values().removeIf(t -> t < since);
+    localPolledAt.values().removeIf(t -> t < since);
     Set<Long> out = new java.util.HashSet<>(polledAt.keySet());
+    out.addAll(localPolledAt.keySet());
     clients.forEach(c -> out.add(c.userId()));
     return out;
   }
 
-  private static String seq(long seq) {
-    return "{\"seq\":" + seq + "}";
+  /** На сайте кто-то, кроме окна на компьютере хоста (1.0.2: тихое время для обновления). */
+  public boolean anyoneRemote() {
+    long since = System.currentTimeMillis() - POLL_ONLINE_MS;
+    return polledAt.values().stream().anyMatch(t -> t >= since)
+        || clients.stream().anyMatch(c -> !c.local());
+  }
+
+  /** Номер состояния и «сейчас перезапуск»: страница не примет старый сервер за вернувшийся. */
+  private String seq(long seq) {
+    return "{\"seq\":" + seq + ",\"restarting\":" + restarting + "}";
   }
 
   /** Одно соединение пишут два потока (изменения и уведомления) — по очереди. */

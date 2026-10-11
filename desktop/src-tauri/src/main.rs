@@ -602,14 +602,26 @@ fn start_server(app: &AppHandle) {
         "-Dfile.encoding=UTF-8",
         "-Dstdout.encoding=UTF-8",
         "--enable-native-access=ALL-UNNAMED",
-        "-jar",
-    ])
-    .arg(&jar_name)
-    .arg("desktop")
-    .env("GROUPBASE_DESKTOP_DATA", &data)
-    .stdin(Stdio::piped())
-    .stdout(Stdio::piped())
-    .stderr(java_log.map(Stdio::from).unwrap_or_else(Stdio::null));
+    ]);
+    // Кэш классов сервера (1.0.2): со второго запуска сервер стартует быстрее – короче перерыв при
+    // обновлении. Своя версия – свой файл; не получилось записать – Java просто работает без него.
+    if let Ok(cache) = app.path().app_cache_dir() {
+        let cache = plain(&cache).join("cds");
+        if fs::create_dir_all(&cache).is_ok() {
+            let version = app.package_info().version.to_string();
+            cmd.arg("-XX:+AutoCreateSharedArchive").arg(format!(
+                "-XX:SharedArchiveFile={}",
+                cache.join(format!("campus-{version}.jsa")).display()
+            ));
+        }
+    }
+    cmd.arg("-jar")
+        .arg(&jar_name)
+        .arg("desktop")
+        .env("GROUPBASE_DESKTOP_DATA", &data)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(java_log.map(Stdio::from).unwrap_or_else(Stdio::null));
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;

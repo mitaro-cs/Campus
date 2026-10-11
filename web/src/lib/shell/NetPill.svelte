@@ -4,13 +4,15 @@
 	import { offline } from '$lib/offline/engine';
 	import { pwa } from '$lib/pwa.svelte';
 
-	// Плашка связи над страницей (0.9): «Нет сети», «Сервер не работает», «Отправляем» + очередь.
+	// Плашка связи над страницей (0.9): «Нет сети», «Сервер не работает», «Отправляем» + очередь;
+	// с 1.0.2 – «Campus обновляется» на время перезапуска ради новой версии.
 	// Отдельным файлом (1.0.2): нужна редко, а её значки утяжеляли «Сегодня».
 </script>
 
 <div class="net" role="status" transition:slide|global>
-	<span class="pill" class:send={!pwa.offline}>
-		{#if !pwa.offline}<CloudUpload size={14} /> Отправляем
+	<span class="pill" class:send={!pwa.offline || pwa.restarting}>
+		{#if pwa.restarting}<CloudUpload size={14} /> Campus обновляется – всё сохранится
+		{:else if !pwa.offline}<CloudUpload size={14} /> Отправляем
 		{:else if pwa.network}<CloudOff size={14} /> Сервер не работает
 		{:else}<WifiOff size={14} /> Нет сети{/if}{#if offline.pending}<b>{offline.pending}</b>{/if}
 	</span>

@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { CircleAlert, CircleCheck, RefreshCw } from '@lucide/svelte';
 	import { onMount } from 'svelte';
-	import { get, post } from '$lib/api';
+	import { get, post, put } from '$lib/api';
 	import { fmtAgo } from '$lib/format';
 	import { session } from '$lib/session.svelte';
 	import { toastError } from '$lib/toasts.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import Switch from '$lib/ui/Switch.svelte';
 	import { appIcon, iconSrc } from '$lib/appIcon.svelte';
 	import UpdateCard from './server/UpdateCard.svelte';
 	import type { Status } from './server/types';
@@ -13,6 +14,16 @@
 	// Какая версия стоит и есть ли новее: GitHub спрашивает сервер, в приложении хоста – ещё и оболочка.
 	let s = $state<Status | null>(null);
 	let checking = $state(false);
+	/** Ставить обновления ночью, когда на сайте никого нет (1.0.2, только приложение хоста). */
+	let night = $state<boolean | null>(null);
+
+	async function setNight(v: boolean) {
+		try {
+			night = (await put<{ night: boolean }>('/api/admin/updates/night', { night: v })).night;
+		} catch (e) {
+			toastError(e);
+		}
+	}
 	let alive = true;
 
 	const version = $derived(s?.version ?? session.me?.instance.version ?? '');
@@ -59,6 +70,10 @@
 				toastError(e);
 				return;
 			}
+			if (s.desktop)
+				get<{ night: boolean }>('/api/admin/updates/night')
+					.then((r) => (night = r.night))
+					.catch(() => {});
 			// Ни разу не проверяли (или сервер старше 0.4.7) – проверяем сразу, без кнопки.
 			if (alive && !s.update && !s.check?.checkedAt) await check();
 		})();
@@ -90,10 +105,21 @@
 	>
 </div>
 
+{#if s?.desktop && night !== null}
+	<div class="night">
+		<Switch
+			checked={night}
+			label="Ставить обновления ночью, когда на сайте никого нет"
+			onchange={setNight}
+		/>
+	</div>
+{/if}
+
 <p class="small muted about">
 	{#if s?.desktop}
-		Приложение само проверяет обновления после запуска и раз в 6 часов и предлагает обновиться. Сайт
-		при обновлении недоступен около минуты, данные сохраняются.
+		Приложение само проверяет обновления после запуска и раз в 6 часов. Новая версия скачивается
+		заранее, пока сайт работает; на время перезапуска (секунд 20–30) у группы – «Campus
+		обновляется», изменения ждут в очереди и уходят сами, а страница сама переходит на новую версию.
 	{:else}
 		Сервер сам проверяет GitHub раз в 12 часов. Обновление – новый groupbase.jar со страницы выпуска
 		и перезапуск сервера, данные сохраняются.
@@ -101,6 +127,9 @@
 </p>
 
 <style>
+	.night {
+		margin-top: var(--s4);
+	}
 	.ver {
 		display: flex;
 		align-items: center;

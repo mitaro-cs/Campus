@@ -44,6 +44,9 @@ class StatusController {
   private final app.groupbase.desktop.DesktopBridge bridge;
   private final app.groupbase.status.Monitor monitor;
   private final app.groupbase.status.ClientTimings timings;
+  private final app.groupbase.status.QuietUpdater quiet;
+
+  record NightBody(boolean night) {}
 
   StatusController(
       GroupbaseProperties props,
@@ -51,9 +54,11 @@ class StatusController {
       UpdateCheck updates,
       app.groupbase.desktop.DesktopBridge bridge,
       app.groupbase.status.Monitor monitor,
-      app.groupbase.status.ClientTimings timings) {
+      app.groupbase.status.ClientTimings timings,
+      app.groupbase.status.QuietUpdater quiet) {
     this.monitor = monitor;
     this.timings = timings;
+    this.quiet = quiet;
     this.props = props;
     this.backups = backups;
     this.updates = updates;
@@ -65,6 +70,21 @@ class StatusController {
   @GetMapping("/api/admin/monitor")
   app.groupbase.status.Monitor.View monitor(@RequestParam(defaultValue = "hour") String range) {
     return "day".equals(range) ? monitor.view(24 * 60, 15) : monitor.view(60, 1);
+  }
+
+  /** Ставить ли обновления самому ночью, когда на сайте никого нет (1.0.2). */
+  @Require(Permission.MANAGE_INSTANCE)
+  @GetMapping("/api/admin/updates/night")
+  java.util.Map<String, Boolean> night() {
+    return java.util.Map.of("night", quiet.enabled());
+  }
+
+  @Require(Permission.MANAGE_INSTANCE)
+  @org.springframework.web.bind.annotation.PutMapping("/api/admin/updates/night")
+  java.util.Map<String, Boolean> setNight(
+      @org.springframework.web.bind.annotation.RequestBody NightBody b) {
+    quiet.setEnabled(b.night());
+    return java.util.Map.of("night", quiet.enabled());
   }
 
   /** Скорость у группы (1.0.2): по устройствам, сетям и пути – за сутки. */

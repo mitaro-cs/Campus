@@ -200,7 +200,7 @@
 	<div class="main-col">
 		{#if !detail}<div class="mobile-only"><MobileBar /></div>{/if}
 		<!-- Связь с сервером: небольшая плашка над страницей (данные – из копии на устройстве). -->
-		{#if (pwa.offline || offline.pending) && extras}<extras.NetPill />{/if}
+		{#if (pwa.offline || offline.pending || pwa.restarting) && extras}<extras.NetPill />{/if}
 		<main id="content" tabindex="-1" class:narrow class:wide>
 			<!-- Предмет → предмет – та же страница: полоса предметов остаётся на месте, а содержимое
 			     въезжает сбоку (страница предмета анимирует его сама). -->

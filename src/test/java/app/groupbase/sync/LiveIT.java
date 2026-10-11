@@ -104,4 +104,27 @@ class LiveIT extends IntegrationTest {
     var r = client().header("Accept", "text/event-stream").get("/api/live");
     assertThat(r.status()).isEqualTo(401);
   }
+
+  @org.springframework.beans.factory.annotation.Autowired LiveUpdates liveUpdates;
+
+  @Test
+  void oneAccountCannotHoardStreams() {
+    // Аудит 1.0.2: бесконечные вкладки одного аккаунта не занимают соединения сервера.
+    long user = 9_000_000L + (System.nanoTime() % 1000);
+    for (int i = 0; i < LiveUpdates.MAX_STREAMS + 5; i++) {
+      liveUpdates.subscribe(user);
+    }
+    assertThat(liveUpdates.streamsOf(user)).isEqualTo(LiveUpdates.MAX_STREAMS);
+  }
+
+  @Test
+  void hostWindowIsOnlineButDoesNotBlockNightUpdates() {
+    long host = 8_000_000L + (System.nanoTime() % 1000);
+    liveUpdates.current(host, true);
+    assertThat(liveUpdates.online()).contains(host);
+    long guest = host + 1;
+    liveUpdates.current(guest, false);
+    assertThat(liveUpdates.online()).contains(guest);
+    assertThat(liveUpdates.anyoneRemote()).isTrue();
+  }
 }

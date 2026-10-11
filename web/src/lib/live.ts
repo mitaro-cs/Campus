@@ -1,4 +1,5 @@
-import { enabled as offlineEnabled, offline, syncNow } from './offline/engine';
+import { enabled as offlineEnabled, flushOutbox, offline, syncNow } from './offline/engine';
+import { pwa } from './pwa.svelte';
 import { refreshUnread } from './notify.svelte';
 import { refreshModeration } from './moderation.svelte';
 import { loadMe } from './session.svelte';
@@ -39,6 +40,40 @@ export function startLive(): () => void {
 		}, 120);
 	}
 
+	// Бесшовное обновление (1.0.2): сервер говорит «сейчас перезапуск» – плашка «Campus обновляется»,
+	// изменения ждут в очереди. Вернулся (hello или ответ без «restarting») – очередь уходит сразу,
+	// страница перечитывает себя, а новая версия сайта подтягивается и ставится, когда удобно.
+	let stuck: ReturnType<typeof setTimeout> | undefined;
+	function restarting(on: boolean) {
+		if (on) {
+			if (pwa.restarting) return;
+			pwa.restarting = Date.now();
+			// Не вернулся за 3 минуты – это уже не обновление: обычная плашка «Сервер не работает».
+			stuck = setTimeout(() => (pwa.restarting = 0), 180_000);
+			return;
+		}
+		if (!pwa.restarting) return;
+		pwa.restarting = 0;
+		clearTimeout(stuck);
+		if (offline.ready && offlineEnabled())
+			flushOutbox()
+				.then(() => syncNow())
+				.catch(() => {});
+		refresh();
+		navigator.serviceWorker
+			?.getRegistration()
+			.then((r) => r?.update())
+			.catch(() => {});
+	}
+
+	function data(e: MessageEvent): { seq?: number; restarting?: boolean } {
+		try {
+			return JSON.parse(e.data);
+		} catch {
+			return {};
+		}
+	}
+
 	function seqOf(e: MessageEvent): number {
 		try {
 			return Number(JSON.parse(e.data).seq) || 0;
@@ -53,6 +88,7 @@ export function startLive(): () => void {
 		helloTimer = setTimeout(fallBack, 8000);
 		source.addEventListener('hello', (e) => {
 			clearTimeout(helloTimer);
+			restarting(!!data(e as MessageEvent).restarting);
 			const seq = seqOf(e as MessageEvent);
 			// Переподключились после обрыва, а на сервере уже что-то новое (номер может и уменьшиться –
 			// копия на втором компьютере хоста взяла снимок).
@@ -67,6 +103,7 @@ export function startLive(): () => void {
 			refresh();
 		});
 		source.addEventListener('bell', () => refreshUnread());
+		source.addEventListener('restarting', () => restarting(true));
 		// Обрыв – EventSource переподключится сам.
 	}
 
@@ -86,7 +123,9 @@ export function startLive(): () => void {
 			try {
 				const res = await fetch('/api/live/seq', { credentials: 'same-origin' });
 				if (!res.ok) return;
-				const seq = Number((await res.json()).seq) || 0;
+				const json = await res.json();
+				restarting(!!json.restarting);
+				const seq = Number(json.seq) || 0;
 				if (seq !== lastSeq) {
 					lastSeq = seq;
 					refresh();
@@ -116,6 +155,7 @@ export function startLive(): () => void {
 		clearInterval(pollTimer);
 		clearTimeout(hideTimer);
 		clearTimeout(refreshTimer);
+		clearTimeout(stuck);
 		document.removeEventListener('visibilitychange', onVisibility);
 	};
 }
