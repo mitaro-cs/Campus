@@ -700,6 +700,27 @@ SemVer (бета младше выпуска). Заметки – раздел `
   `POST /api/semesters/{id}/subjects {name…}` – `SemesterService.addSubject` (создать и сразу в
   архив). Архивному предмету уведомлений нет (`Notifier.followers`). Фронт – «Прошлый семестр» и
   «Добавить предмет» в `SemesterArchive`; пустые архивы видны тем, кто ведёт предметы.
+- Окно хоста – свой порт (аудит 1.0.2): `DesktopCommand` выбирает свободный порт 127.0.0.1 →
+  `groupbase.desktop.window-port` → второй вход Tomcat (`web/WindowConnector`), `DesktopBridge.localUrl`
+  ведёт туда. `Requests.fromThisComputer` при заданном порте окна требует **его** (`req.getLocalPort()`),
+  не только 127.0.0.1: туннельный клиент на компьютере хоста подключается к основному порту тоже с
+  127.0.0.1. Отчёт аудита – `docs/security-audit-1.0.2.md`; изоляция групп по содержимому –
+  `GroupIsolationIT.contentOfAnotherGroupIsNeitherVisibleNorChangeable`.
+- Пределы (аудит 1.0.2): `LiveUpdates.MAX_STREAMS` (8 потоков на аккаунт, лишние – старые –
+  закрываются), `FileText.MAX_TOTAL`/`MAX_PARTS` (части docx/pptx вместе), PDF – временные файлы.
+  Возврат после входа – `lib/auth/next.ts safeNext` (разбор URL, только свой источник).
+- Бесшовное обновление (1.0.2): `updating` от оболочки (и любой перезапуск `requestRestart`) →
+  `DesktopBridge.onGoingDown` → `sync/RestartNotice` → `LiveUpdates.restarting()`: SSE-событие
+  `restarting`, флаг в `hello` и в `/api/live/seq` (старый сервер до остановки не примут за
+  вернувшийся). Фронт – `live.ts restarting()`: `pwa.restarting` → плашка «Campus обновляется»
+  (`NetPill`), запись – в очередь (как без сети); вернулся (hello/опрос без флага) – `flushOutbox`,
+  `syncNow`, `registration.update()`; не вернулся за 3 мин – обычная «Сервер не работает». Ночное
+  обновление – `status/QuietUpdater` (раз в минуту; есть версия от оболочки, `updates.night` не
+  `off`, 10 мин нет никого, кроме окна хоста – `LiveUpdates.anyoneRemote`, локальные потоки и
+  опросы помечены `actor.local()`; с 2 до 6 – `bridge.requestUpdate()` раз на версию), `GET/PUT
+  /api/admin/updates/night`, переключатель в `UpdatesPanel`. Быстрый старт: `scripts/jre.sh`
+  `--generate-cds-archive` (не вышло – без него), оболочка – `-XX:+AutoCreateSharedArchive
+  -XX:SharedArchiveFile=<кэш приложения>/cds/campus-<версия>.jsa` (ошибка записи не мешает запуску).
 - Репозиторий – `mitaro-cs/Campus` (переименован из StorageSystem): `UpdateCheck.LATEST`,
   `VapidKeys.PROJECT`, ссылка выпуска в `StatusController`, `tauri.conf.json` (обновление
   оболочки). `UpdateCheck` идёт по перенаправлениям (`Redirect.NORMAL`): на старый адрес GitHub
