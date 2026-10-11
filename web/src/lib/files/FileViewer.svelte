@@ -9,6 +9,8 @@
 	// без скачивания и без выхода из приложения. Остальное – «Скачать».
 	let dialog: HTMLDialogElement | undefined = $state();
 	let zoom = $state(1);
+	/** Откуда въезжает новый файл: 1 – справа (вперёд), -1 – слева, 0 – просто появился. */
+	let dir = $state(0);
 	let text = $state<string | null>(null);
 	let textError = $state('');
 
@@ -20,7 +22,10 @@
 
 	$effect(() => {
 		if (!dialog) return;
-		if (viewer.open && !dialog.open) dialog.showModal();
+		if (viewer.open && !dialog.open) {
+			dir = 0;
+			dialog.showModal();
+		}
 		if (!viewer.open && dialog.open) dialog.close();
 	});
 
@@ -47,6 +52,7 @@
 	function go(step: number) {
 		if (!many) return;
 		const n = viewer.files.length;
+		dir = step;
 		viewer.index = (viewer.index + step + n) % n;
 	}
 
@@ -63,23 +69,72 @@
 		zoom = Math.round(Math.min(4, Math.max(0.5, z)) * 100) / 100;
 	}
 
-	// Свайп влево-вправо – соседний файл (когда картинка не увеличена).
+	// Листание пальцем (1.0.2): файл едет за пальцем, дальше порога – соседний въезжает с той же
+	// стороны, ближе – возвращается на место. Касание левой или правой трети картинки – назад или
+	// вперёд, как в Telegram; середина – для двойного касания (приблизить).
 	let startX = 0;
 	let startY = 0;
+	let startAt = 0;
+	let tracking = false;
+	let drag = $state(0);
+	let dragging = $state(false);
+	let stage: HTMLDivElement | undefined = $state();
+	const scrolls = $derived(kind === 'pdf' || kind === 'text' || kind === 'markdown' || zoom !== 1);
+
 	function down(e: PointerEvent) {
 		startX = e.clientX;
 		startY = e.clientY;
+		startAt = Date.now();
+		tracking = e.pointerType === 'touch' && !scrolls;
+	}
+	function move(e: PointerEvent) {
+		if (!tracking) return;
+		const dx = e.clientX - startX;
+		if (!dragging && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(e.clientY - startY))
+			dragging = true;
+		// Один файл и край ленты – только «пружинит».
+		if (dragging) drag = has(dx < 0 ? 1 : -1) ? dx : dx * 0.25;
 	}
 	function up(e: PointerEvent) {
-		if (zoom !== 1 || e.pointerType !== 'touch') return;
+		if (!tracking) return;
+		tracking = false;
 		const dx = e.clientX - startX;
-		if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(e.clientY - startY) * 1.5) go(dx < 0 ? 1 : -1);
+		const dy = e.clientY - startY;
+		const wasDrag = dragging;
+		dragging = false;
+		drag = 0;
+		if (wasDrag) {
+			const step = dx < 0 ? 1 : -1;
+			if (Math.abs(dx) > 60 && has(step)) go(step);
+			return;
+		}
+		if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && Date.now() - startAt < 350) {
+			const side = sideOf(e.clientX);
+			if (side && kind === 'image' && has(side)) go(side);
+		}
+	}
+	function cancel() {
+		tracking = false;
+		dragging = false;
+		drag = 0;
+	}
+	/** Есть ли файл в эту сторону: пальцем по кругу не листаем (стрелками – можно). */
+	function has(step: number): boolean {
+		const i = viewer.index + step;
+		return many && i >= 0 && i < viewer.files.length;
+	}
+	/** Левая треть – -1, правая – 1, середина – 0 (только когда файлов несколько). */
+	function sideOf(x: number): number {
+		if (!many || !stage) return 0;
+		const r = stage.getBoundingClientRect();
+		const k = (x - r.left) / r.width;
+		return k < 0.3 ? -1 : k > 0.7 ? 1 : 0;
 	}
 
-	// Двойное касание картинки – приблизить или вернуть (масштаб страницы сам не меняется).
+	// Двойное касание середины картинки – приблизить или вернуть (масштаб страницы сам не меняется).
 	let lastTap = 0;
 	function tapImage(e: PointerEvent) {
-		if (e.pointerType !== 'touch') return;
+		if (e.pointerType !== 'touch' || (zoom === 1 && sideOf(e.clientX))) return;
 		const now = Date.now();
 		if (now - lastTap < 300) setZoom(zoom === 1 ? 2 : 1);
 		lastTap = now;
@@ -127,13 +182,22 @@
 
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
+			bind:this={stage}
 			class="stage"
-			class:scroll={kind === 'pdf' || kind === 'text' || kind === 'markdown' || zoom !== 1}
+			class:scroll={scrolls}
 			onpointerdown={down}
+			onpointermove={move}
 			onpointerup={up}
+			onpointercancel={cancel}
 		>
 			{#key file.id}
-				<div class="content {kind}">
+				<div
+					class="content {kind}"
+					class:dragging
+					style:--from-x="{dir * 64}px"
+					style:--from-y={dir ? '0px' : '6px'}
+					style:translate={drag ? `${drag}px 0` : null}
+				>
 					{#if pending}
 						<div class="none">
 							<FileIcon mime={file.mime} size={34} />
@@ -299,12 +363,23 @@
 		margin: auto;
 		padding: 12px 12px calc(28px + env(safe-area-inset-bottom));
 		max-width: 100%;
-		animation: content-in 200ms var(--ease);
+		animation: content-in 260ms var(--ease);
+		transition: translate 240ms var(--ease);
 	}
+	.content.dragging {
+		transition: none;
+	}
+	/* Соседний файл въезжает с той стороны, куда листали; первый – чуть снизу. */
 	@keyframes content-in {
 		from {
 			opacity: 0;
-			transform: translateY(6px);
+			transform: translate(var(--from-x, 0px), var(--from-y, 6px)) scale(0.98);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.content {
+			animation: none;
+			transition: none;
 		}
 	}
 	.content.pdf {

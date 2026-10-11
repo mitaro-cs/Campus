@@ -226,7 +226,10 @@ SemVer (бета младше выпуска). Заметки – раздел `
 
 - Иконки предметов — `web/src/lib/subjectIcons.ts` (ключи = `subjects.icon`, подбор по названию).
 - Просмотр файлов — `lib/files/FileViewer.svelte` (`openFiles()` из `viewer.svelte.ts`), PDF через
-  pdf.js (`PdfView.svelte`, воркер кешируется лениво — см. `LAZY` в service-worker).
+  pdf.js (`PdfView.svelte`, воркер кешируется лениво — см. `LAZY` в service-worker). Пальцем
+  (1.0.2, только `pointerType === 'touch'`): файл едет за пальцем (`drag`), > 60 px – соседний
+  въезжает со стороны `dir`; касание левых/правых 30 % картинки – назад/вперёд, середина – двойное
+  касание (приблизить). Пальцем по кругу не листаем (`has`), стрелками – можно.
 - Фон входа — `lib/appearance.ts` + классы `.login-bg-*` в `app.css`; сервер — `avatars/LoginBackground`.
 - Свои настройки — `/profile` (шестерёнка у имени в боковой панели; на телефоне — «Профиль»):
   разделы «Аккаунт» (`lib/profile/AccountPanel`, `SecurityPanel`; «Мои данные» убраны в 0.7,
