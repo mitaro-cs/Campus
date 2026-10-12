@@ -703,7 +703,9 @@ SemVer (бета младше выпуска). Заметки – раздел `
   `POST /api/semesters/{id}/subjects {name…}` – `SemesterService.addSubject` (создать и сразу в
   архив). Архивному предмету уведомлений нет (`Notifier.followers`). Фронт – «Прошлый семестр» и
   «Добавить предмет» в `SemesterArchive`; пустые архивы видны тем, кто ведёт предметы.
-- Окно хоста – свой порт (аудит 1.0.3): `DesktopCommand` выбирает свободный порт 127.0.0.1 →
+- Окно хоста – свой порт (аудит 1.0.3): постоянный порт 127.0.0.1 (`DesktopConfig.chooseWindowPort`,
+  `desktop.properties` `window.port`, по умолчанию 17381; занят – другой, и он запоминается: тема и кеш
+  окна живут по адресу с портом; `scripts/desktop-smoke.sh` ждёт окно на нём и сверяет его между запусками) →
   `groupbase.desktop.window-port` → второй вход Tomcat (`web/WindowConnector`), `DesktopBridge.localUrl`
   ведёт туда. `Requests.fromThisComputer` при заданном порте окна требует **его** (`req.getLocalPort()`),
   не только 127.0.0.1: туннельный клиент на компьютере хоста подключается к основному порту тоже с

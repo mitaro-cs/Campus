@@ -13,20 +13,25 @@ import java.util.Properties;
 /**
  * Сетевые настройки приложения хоста, нужные до старта сервера: порт и режим «локальная сеть».
  * Лежат в {@code desktop.properties} каталога данных. Порт постоянный: у окна хоста адрес
- * http://127.0.0.1:порт, и от него зависят сохранённые в окне данные.
+ * http://127.0.0.1:порт, и от него зависят сохранённые в окне данные. Порт окна хоста (1.0.3,
+ * только 127.0.0.1) – тоже постоянный по той же причине: тема, оформление и кеш окна живут по
+ * адресу с портом.
  */
 public final class DesktopConfig {
 
   public static final String FILE = "desktop.properties";
   public static final int DEFAULT_PORT = 17380;
+  public static final int DEFAULT_WINDOW_PORT = 17381;
 
   private final Path file;
   private int port;
+  private int windowPort;
   private boolean lan;
 
-  private DesktopConfig(Path file, int port, boolean lan) {
+  private DesktopConfig(Path file, int port, int windowPort, boolean lan) {
     this.file = file;
     this.port = port;
+    this.windowPort = windowPort;
     this.lan = lan;
   }
 
@@ -38,13 +43,19 @@ public final class DesktopConfig {
         p.load(in);
       }
     }
-    int port;
+    return new DesktopConfig(
+        f,
+        number(p, "port", DEFAULT_PORT),
+        number(p, "window.port", DEFAULT_WINDOW_PORT),
+        Boolean.parseBoolean(p.getProperty("lan", "false")));
+  }
+
+  private static int number(Properties p, String key, int fallback) {
     try {
-      port = Integer.parseInt(p.getProperty("port", String.valueOf(DEFAULT_PORT)).trim());
+      return Integer.parseInt(p.getProperty(key, String.valueOf(fallback)).trim());
     } catch (NumberFormatException e) {
-      port = DEFAULT_PORT;
+      return fallback;
     }
-    return new DesktopConfig(f, port, Boolean.parseBoolean(p.getProperty("lan", "false")));
   }
 
   public int port() {
@@ -88,11 +99,41 @@ public final class DesktopConfig {
     return port;
   }
 
+  /**
+   * Порт окна хоста: сохранённый, если свободен на 127.0.0.1 и не совпадает с основным; иначе любой
+   * свободный – и он запоминается. Вызывать после {@link #choosePort()}.
+   */
+  public int chooseWindowPort() throws IOException {
+    InetAddress loopback = InetAddress.getLoopbackAddress();
+    if (windowPort < 1024
+        || windowPort > 65535
+        || windowPort == port
+        || !free(loopback, windowPort)) {
+      do {
+        try (ServerSocket s = new ServerSocket(0, 0, loopback)) {
+          windowPort = s.getLocalPort();
+        }
+      } while (windowPort == port);
+      save();
+    } else if (!Files.exists(file)) {
+      save();
+    }
+    return windowPort;
+  }
+
   private boolean free(int p) {
+    try {
+      return free(InetAddress.getByName(bindAddress()), p);
+    } catch (IOException e) {
+      return false;
+    }
+  }
+
+  private static boolean free(InetAddress address, int p) {
     try (ServerSocket s = new ServerSocket()) {
       // Как Tomcat: порт, на котором только что работал прежний сервер (TIME_WAIT), свободен.
       s.setReuseAddress(true);
-      s.bind(new InetSocketAddress(InetAddress.getByName(bindAddress()), p));
+      s.bind(new InetSocketAddress(address, p));
       return true;
     } catch (IOException e) {
       return false;
@@ -102,6 +143,7 @@ public final class DesktopConfig {
   private void save() throws IOException {
     Properties p = new Properties();
     p.setProperty("port", String.valueOf(port));
+    p.setProperty("window.port", String.valueOf(windowPort));
     p.setProperty("lan", String.valueOf(lan));
     Files.createDirectories(file.getParent());
     try (OutputStream out = Files.newOutputStream(file)) {

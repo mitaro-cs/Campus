@@ -86,7 +86,8 @@ public class DesktopCommand implements Callable<Integer> {
       props.put("groupbase.http.port", String.valueOf(port));
       props.put("groupbase.http.address", net.bindAddress());
       props.put("groupbase.desktop.enabled", "true");
-      props.put("groupbase.desktop.window-port", String.valueOf(freeLoopbackPort()));
+      // Свой постоянный порт окна: данные окна (тема, кеш) браузер хранит по адресу с портом.
+      props.put("groupbase.desktop.window-port", String.valueOf(net.chooseWindowPort()));
       ctx = AppContext.desktop(data, props, msg -> out.event("status", Map.of("message", msg)));
     } catch (Exception e) {
       Problem p = problem(e);
@@ -208,13 +209,5 @@ public class DesktopCommand implements Callable<Integer> {
       }
     }
     return new Problem("GB-200", last == null ? String.valueOf(e) : last);
-  }
-
-  /** Свободный порт на 127.0.0.1 для окна хоста: туннель и локальная сеть на него не ведут. */
-  static int freeLoopbackPort() throws IOException {
-    try (java.net.ServerSocket s =
-        new java.net.ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress())) {
-      return s.getLocalPort();
-    }
   }
 }
