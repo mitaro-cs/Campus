@@ -278,7 +278,8 @@ export interface SchedulePreview {
 	unsupported: number;
 	past: number;
 	existing: number;
-	replaced: number;
+	/** Пар из файла уже есть – загрузка их пропустит, не трогая (1.0.4). */
+	already: number;
 }
 
 export interface Today {

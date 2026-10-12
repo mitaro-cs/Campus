@@ -25,7 +25,6 @@
 	let preview = $state<SchedulePreview | null>(null);
 	/** Название из файла → «subject:ID», «create», «none» или «skip». */
 	let choice = $state<Record<string, string>>({});
-	let replace = $state(true);
 	let busy = $state(false);
 	let error = $state('');
 	let dragging = $state(false);
@@ -70,7 +69,6 @@
 			ics = t;
 			fileName = file.name;
 			preview = p;
-			replace = true;
 			// Не нашёлся предмет: регулярная пара – новый предмет, разовое событие – без предмета.
 			choice = Object.fromEntries(
 				p.titles.map((x) => [
@@ -104,15 +102,13 @@
 			});
 			const r = await post<{
 				created: number;
-				updated: number;
-				deleted: number;
+				kept: number;
 				skipped: number;
 				subjects: number;
-			}>(`/api/groups/${group.id}/schedule/import`, { ics, choices, replace });
+			}>(`/api/groups/${group.id}/schedule/import`, { ics, choices });
 			const parts = [
 				r.created && `новых пар: ${r.created}`,
-				r.updated && `изменилось: ${r.updated}`,
-				r.deleted && `убрано: ${r.deleted}`,
+				r.kept && `уже были: ${r.kept}`,
 				r.subjects && `новых предметов: ${r.subjects}`
 			].filter(Boolean);
 			toast(
@@ -234,21 +230,14 @@
 			{/each}
 		</div>
 
-		{#if preview.replaced > 0}
-			<label class="check replace">
-				<input type="checkbox" bind:checked={replace} />
-				<span
-					>Убрать {preview.replaced}
-					{plural(preview.replaced, ['пару', 'пары', 'пар'])} прежней загрузки, которых нет в этом файле
-					<span class="faint small"
-						>(с {fmtDate(preview.from)} и дальше). Задания и материалы к ним останутся.</span
-					></span
-				>
-			</label>
-		{:else if preview.existing > 0}
+		{#if preview.existing > 0}
 			<p class="hint">
-				<TriangleAlert size={14} /> У группы уже есть пары – одинаковые не задвоятся: загрузка обновит
-				их.
+				<TriangleAlert size={14} />
+				{#if preview.already > 0}
+					{preview.already}
+					{plural(preview.already, ['пара', 'пары', 'пар'])} из файла уже есть – они останутся как есть.
+				{/if}
+				Загрузка только добавит новые пары: те, что уже в расписании, не изменятся и не пропадут.
 			</p>
 		{/if}
 		{#if error}<p class="error-text" role="alert">{error}</p>{/if}
@@ -361,10 +350,6 @@
 	}
 	.choice.skip :global(.value) {
 		color: var(--text-3);
-	}
-	.replace {
-		align-items: flex-start;
-		gap: 10px;
 	}
 	.label {
 		margin: var(--s3) 0 8px;

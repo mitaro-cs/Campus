@@ -284,7 +284,7 @@ SemVer (бета младше выпуска). Заметки – раздел `
   студентам ⚙ (выкл.).
 - Расписание (`schedule/`, `/api/schedule`, `/api/lessons/{id}`, страницы `routes/(app)/schedule`):
   таблица `lessons` (группа, предмет или NULL, вид, начало/конец, аудитория, тема, `source` — UID
-  события из файла: повторная загрузка обновляет, а не дублирует), `homework.lesson_id` и
+  события из файла), `homework.lesson_id` и
   `materials.lesson_id` — «к паре». Файл .ics разбирает сервер (`Ics`: RRULE DAILY/WEEKLY/MONTHLY,
   EXDATE, RDATE, RECURRENCE-ID, пояса Windows; весь день и старше 120 дней — пропуск; до 3000 пар),
   названия → предметы — `Titles` (вид по словам «лек/пр/лаб/сем…», сокращения «физра», «матан»,
@@ -736,6 +736,16 @@ SemVer (бета младше выпуска). Заметки – раздел `
   /api/admin/updates/night`, переключатель в `UpdatesPanel`. Быстрый старт: `scripts/jre.sh`
   `--generate-cds-archive` (не вышло – без него), оболочка – `-XX:+AutoCreateSharedArchive
   -XX:SharedArchiveFile=<кэш приложения>/cds/campus-<версия>.jsa` (ошибка записи не мешает запуску).
+- Загрузка расписания (1.0.4, просьба владельца: «старое не трогать совершенно») –
+  `LessonService.importIcs` только добавляет: пара с тем же `source` или тем же временем и
+  названием (`slots`, `Titles.key`) пропускается (`kept`), существующие не меняются и не удаляются.
+  Предпросмотр – `already` (сколько из файла уже есть). Убрать всё – «Очистить расписание».
+- Рейтинг активности (1.0.4): `content/Activity` (очки: материал и задание – 3, новость – 2,
+  комментарий – 1; реакции и дни – без очков; только видимое группе, скрытое и на проверке – нет;
+  неделя и месяц – скользящие 7 и 30 дней), `GET /api/groups/{id}/activity?period=week|month|all`
+  (`view_group`), `myDone` – только свои отметки. Фронт – `content/Leaderboard.svelte` (лениво),
+  вкладка «Рейтинг» в «Участниках» (`?tab=rating`). Классы `.stats` и `.list` в нём не брать –
+  глобальные в app.css. e2e – `29-rating`.
 - Репозиторий – `mitaro-cs/Campus` (переименован из StorageSystem): `UpdateCheck.LATEST`,
   `VapidKeys.PROJECT`, ссылка выпуска в `StatusController`, `tauri.conf.json` (обновление
   оболочки). `UpdateCheck` идёт по перенаправлениям (`Redirect.NORMAL`): на старый адрес GitHub

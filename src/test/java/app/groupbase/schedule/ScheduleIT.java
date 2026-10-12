@@ -113,21 +113,15 @@ class ScheduleIT extends IntegrationTest {
 
     // Физкультуры среди предметов нет — староста создаёт её прямо при загрузке.
     List<Map<String, Object>> choices = List.of(Map.of("key", "физкультура", "action", "create"));
-    var imported =
-        headman
-            .api()
-            .post(base + "/import", Map.of("ics", file, "choices", choices, "replace", true));
+    var imported = headman.api().post(base + "/import", Map.of("ics", file, "choices", choices));
     assertThat(imported.status()).as(imported.body()).isEqualTo(200);
     assertThat(imported.json().get("created").asInt()).isEqualTo(7);
     assertThat(imported.json().get("subjects").asInt()).isEqualTo(1);
 
     // Тот же файл ещё раз — ничего не дублируется и не создаётся заново.
-    var again =
-        headman
-            .api()
-            .post(base + "/import", Map.of("ics", file, "choices", choices, "replace", true));
+    var again = headman.api().post(base + "/import", Map.of("ics", file, "choices", choices));
     assertThat(again.json().get("created").asInt()).isZero();
-    assertThat(again.json().get("updated").asInt()).isZero();
+    assertThat(again.json().get("kept").asInt()).isEqualTo(7);
     assertThat(again.json().get("subjects").asInt()).isZero();
 
     long from = day.toEpochMilli() - DAY;
@@ -207,13 +201,18 @@ class ScheduleIT extends IntegrationTest {
                 .asBoolean())
         .isTrue();
 
-    // Обновлённый файл: последней лекции нет — она уходит, остальное (с темой и заданием) — нет.
+    // Новый файл старое не трогает (1.0.4): в нём нет последней лекции – она остаётся; пары,
+    // которые уже есть, не меняются; добавляются только новые.
     var shorter = headman.api().post(base + "/preview", Map.of("ics", ics(day, 3)));
-    assertThat(shorter.json().get("replaced").asInt()).isEqualTo(1);
-    var replaced =
-        headman.api().post(base + "/import", Map.of("ics", ics(day, 3), "choices", choices));
-    assertThat(replaced.json().get("deleted").asInt()).isEqualTo(1);
-    assertThat(student.api().get("/api/schedule?group=" + g + range).json().size()).isEqualTo(6);
+    assertThat(shorter.json().get("already").asInt()).isEqualTo(6);
+    var same = headman.api().post(base + "/import", Map.of("ics", ics(day, 3), "choices", choices));
+    assertThat(same.json().get("created").asInt()).isZero();
+    assertThat(student.api().get("/api/schedule?group=" + g + range).json().size()).isEqualTo(7);
+    var longer =
+        headman.api().post(base + "/import", Map.of("ics", ics(day, 5), "choices", choices));
+    assertThat(longer.json().get("created").asInt()).isEqualTo(1);
+    assertThat(longer.json().get("kept").asInt()).isEqualTo(7);
+    assertThat(student.api().get("/api/schedule?group=" + g + range).json().size()).isEqualTo(8);
     var kept = student.api().get("/api/lessons/" + lesson).json();
     assertThat(kept.get("lesson").get("note").asString()).isEqualTo("Лекция 1. Пределы");
     assertThat(kept.get("lesson").get("cancelled").asBoolean()).isTrue();
@@ -221,7 +220,7 @@ class ScheduleIT extends IntegrationTest {
 
     // Офлайн-копия получает пары.
     var sync = student.api().get("/api/sync?after=0");
-    assertThat(sync.json().get("lessons").get("upsert").size()).isEqualTo(6);
+    assertThat(sync.json().get("lessons").get("upsert").size()).isEqualTo(8);
   }
 
   @Test
