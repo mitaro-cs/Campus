@@ -74,7 +74,8 @@ test('цвет оформления: основной цвет и насыщен
 	);
 
 	await colors.getByRole('radio', { name: 'Чернила' }).click();
-	expect(await html.getAttribute('data-accent')).toBeNull();
+	// Смена плавная (View Transitions) – атрибут меняется кадром позже.
+	await expect.poll(() => html.getAttribute('data-accent')).toBeNull();
 	await page.getByRole('radio', { name: 'Как в системе' }).click();
 });
 
