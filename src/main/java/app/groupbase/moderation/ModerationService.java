@@ -107,6 +107,7 @@ public class ModerationService {
           "comment.hide",
           "comment.unhide",
           "comment.delete",
+          "comment.edit",
           "report.dismiss");
 
   private static final JsonMapper JSON = JsonMapper.builder().build();

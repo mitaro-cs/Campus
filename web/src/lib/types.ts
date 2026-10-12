@@ -302,6 +302,10 @@ export interface Comment {
 	canDelete: boolean;
 	/** Скрыть и вернуть может модератор (у серверов до 0.4.8 поля нет). */
 	canHide?: boolean;
+	/** Изменить (1.0.4): свой – автор, любой – модератор; bodyMd – исходный текст для правки. */
+	canEdit?: boolean;
+	bodyMd?: string | null;
+	editedAt?: number | null;
 	/** Создано без сети и ещё не отправлено на сервер. */
 	pending?: boolean;
 	/** Своё, ещё в пути к серверу – показано сразу (Comments.svelte). */

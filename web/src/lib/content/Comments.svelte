@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { CloudOff, EyeOff } from '@lucide/svelte';
 	import { offline } from '$lib/offline/engine';
-	import { del, get, post, put as putApi } from '$lib/api';
+	import { del, get, patch, post, put as putApi } from '$lib/api';
 	import { fmtAgo } from '$lib/format';
 	import { shortNames } from '$lib/names';
 	import { peek, put } from '$lib/cache';
@@ -113,6 +113,40 @@
 		}
 	}
 
+	// Правка (1.0.4): свой – автор, любой – модератор. Прямо на месте, без окна.
+	let editing = $state<number | null>(null);
+	let draft = $state('');
+	let saving = $state(false);
+	function startEdit(c: Comment) {
+		editing = c.id;
+		draft = c.bodyMd ?? '';
+	}
+	async function saveEdit(c: Comment) {
+		const body = draft.trim();
+		if (!body || saving) return;
+		if (body === (c.bodyMd ?? '').trim()) return void (editing = null);
+		saving = true;
+		try {
+			const n = await patch<Comment>(`/api/comments/${c.id}`, { body });
+			items = items.map((x) => (x.id === c.id ? { ...x, ...n } : x));
+			editing = null;
+		} catch (err) {
+			toastError(err);
+		} finally {
+			saving = false;
+		}
+	}
+	function editKeys(e: KeyboardEvent, c: Comment) {
+		if (e.key === 'Escape') {
+			e.preventDefault();
+			e.stopPropagation();
+			editing = null;
+		} else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+			e.preventDefault();
+			saveEdit(c);
+		}
+	}
+
 	async function remove(c: Comment) {
 		try {
 			await del(`/api/comments/${c.id}`);
@@ -137,7 +171,11 @@
 		>
 			<div class="head">
 				<Author person={c.author} size={24} label={names.get(c.author.id)} />
-				<span class="faint small num">{fmtAgo(c.createdAt)}</span>
+				<span class="faint small num"
+					>{fmtAgo(c.createdAt)}{#if c.editedAt}<span title="Изменено {fmtAgo(c.editedAt)}">
+							· изменено</span
+						>{/if}</span
+				>
 				{#if c.pending}<span
 						class="chip amber"
 						title="Создано без сети – уйдёт на сервер, когда появится интернет"
@@ -147,6 +185,9 @@
 						><EyeOff size={12} /> скрыт</span
 					>{/if}
 				<span class="spacer"></span>
+				{#if c.canEdit && c.id > 0 && editing !== c.id}
+					<button class="link small" onclick={() => startEdit(c)}>Изменить</button>
+				{/if}
 				{#if c.canHide}
 					<button class="link small" onclick={() => toggleHidden(c)}
 						>{c.hidden ? 'Вернуть' : 'Скрыть'}</button
@@ -160,7 +201,34 @@
 					>
 				{/if}
 			</div>
-			<Prose html={c.bodyHtml} class="text {c.hidden ? 'dim' : ''}" />
+			{#if editing === c.id}
+				<div class="edit">
+					<label class="sr-only" for="edit-{c.id}">Изменить комментарий</label>
+					<!-- svelte-ignore a11y_autofocus -->
+					<textarea
+						id="edit-{c.id}"
+						class="textarea"
+						rows="3"
+						maxlength="4000"
+						autofocus
+						bind:value={draft}
+						onkeydown={(e) => editKeys(e, c)}></textarea>
+					<div class="row">
+						<span class="faint small">Ctrl+Enter – сохранить, Esc – отменить</span>
+						<span class="spacer"></span>
+						<Button size="s" onclick={() => (editing = null)}>Отмена</Button>
+						<Button
+							size="s"
+							variant="primary"
+							loading={saving}
+							disabled={!draft.trim()}
+							onclick={() => saveEdit(c)}>Сохранить</Button
+						>
+					</div>
+				</div>
+			{:else}
+				<Prose html={c.bodyHtml} class="text {c.hidden ? 'dim' : ''}" />
+			{/if}
 		</div>
 	{/each}
 	{#if canComment}
@@ -230,6 +298,18 @@
 	}
 	.link:hover {
 		color: var(--danger);
+	}
+	.edit {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding-left: 32px;
+	}
+	.edit .row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
 	}
 	.new {
 		display: flex;

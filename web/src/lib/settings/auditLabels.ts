@@ -14,6 +14,7 @@ const LABELS: Record<string, string> = {
 	'backup.settings': 'изменил настройки копий',
 	'backup.mirror': 'выбрал второй диск для копий',
 	'comment.delete': 'удалил комментарий',
+	'comment.edit': 'изменил чужой комментарий',
 	'comment.hide': 'скрыл комментарий',
 	'comment.unhide': 'вернул комментарий',
 	'export.group': 'скачал архив группы',

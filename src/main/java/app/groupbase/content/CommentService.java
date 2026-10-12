@@ -33,6 +33,9 @@ public class CommentService {
 
   /**
    * @param canHide скрыть и вернуть может модератор: скрытый видят только модераторы и автор
+   * @param canEdit изменить (1.0.4): свой – автор, любой – модератор (администратор, староста)
+   * @param bodyMd исходный текст – только тому, кто может изменить
+   * @param editedAt когда изменили, null – не меняли
    */
   public record Comment(
       long id,
@@ -41,9 +44,19 @@ public class CommentService {
       long createdAt,
       boolean hidden,
       boolean canDelete,
-      boolean canHide) {}
+      boolean canHide,
+      boolean canEdit,
+      String bodyMd,
+      Long editedAt) {}
 
-  private record Row(long id, Long authorId, String bodyHtml, long createdAt, boolean hidden) {}
+  private record Row(
+      long id,
+      Long authorId,
+      String bodyHtml,
+      long createdAt,
+      boolean hidden,
+      String bodyMd,
+      Long editedAt) {}
 
   private final JdbcClient db;
   private final Targets targets;
@@ -99,7 +112,7 @@ public class CommentService {
     boolean mod = access.can(actor, Permission.MODERATE_CONTENT, groups);
     List<Row> rows =
         db.sql(
-                "SELECT id, author_id, body_html, created_at, hidden FROM comments"
+                "SELECT id, author_id, body_html, created_at, hidden, body_md, edited_at FROM comments"
                     + " WHERE target_type = ? AND target_id = ? AND (hidden = 0 OR ? OR author_id = ?)"
                     + " ORDER BY id")
             .params(parent.id(), id, mod ? 1 : 0, actor.id())
@@ -110,7 +123,9 @@ public class CommentService {
                         Rows.longOrNull(rs, "author_id"),
                         rs.getString(3),
                         rs.getLong(4),
-                        Rows.bool(rs, "hidden")))
+                        Rows.bool(rs, "hidden"),
+                        rs.getString(6),
+                        Rows.longOrNull(rs, "edited_at")))
             .list();
     Set<Long> authorIds = new HashSet<>();
     rows.forEach(
@@ -122,15 +137,20 @@ public class CommentService {
     Map<Long, Person> authors = people.load(authorIds);
     return rows.stream()
         .map(
-            r ->
-                new Comment(
-                    r.id(),
-                    people.get(authors, r.authorId()),
-                    r.bodyHtml(),
-                    r.createdAt(),
-                    r.hidden(),
-                    mod || (r.authorId() != null && r.authorId() == actor.id()),
-                    mod))
+            r -> {
+              boolean mine = r.authorId() != null && r.authorId() == actor.id();
+              return new Comment(
+                  r.id(),
+                  people.get(authors, r.authorId()),
+                  r.bodyHtml(),
+                  r.createdAt(),
+                  r.hidden(),
+                  mod || mine,
+                  mod,
+                  mod || mine,
+                  mod || mine ? r.bodyMd() : null,
+                  r.editedAt());
+            })
         .toList();
   }
 
@@ -139,10 +159,7 @@ public class CommentService {
     if (!access.can(actor, Permission.COMMENT, groups)) {
       throw ApiException.forbidden();
     }
-    String md = body == null ? "" : body.strip();
-    if (md.isEmpty() || md.length() > 4000) {
-      throw ApiException.invalid("body", "Комментарий: от 1 до 4000 символов");
-    }
+    String md = clean(body);
     long now = clock.millis();
     String html = Markdown.render(md);
     long cid =
@@ -154,7 +171,85 @@ public class CommentService {
             .single();
     Person me = people.load(List.of(actor.id())).get(actor.id());
     return new Comment(
-        cid, me, html, now, false, true, access.can(actor, Permission.MODERATE_CONTENT, groups));
+        cid,
+        me,
+        html,
+        now,
+        false,
+        true,
+        access.can(actor, Permission.MODERATE_CONTENT, groups),
+        true,
+        md,
+        null);
+  }
+
+  private static String clean(String body) {
+    String md = body == null ? "" : body.strip();
+    if (md.isEmpty() || md.length() > 4000) {
+      throw ApiException.invalid("body", "Комментарий: от 1 до 4000 символов");
+    }
+    return md;
+  }
+
+  /**
+   * Изменить комментарий (1.0.4): свой – автор, любой – модератор (администратор сайта, староста,
+   * модератор). Правка чужого – в журнале, с прежним текстом.
+   */
+  @Transactional
+  public Comment edit(Actor actor, long commentId, String body) {
+    C c = find(commentId);
+    Parent parent = Parent.valueOf(c.type().toUpperCase(Locale.ROOT));
+    List<Long> groups = visibleParent(actor, parent, c.targetId());
+    boolean own = c.authorId() != null && c.authorId() == actor.id();
+    boolean mod = access.can(actor, Permission.MODERATE_CONTENT, groups);
+    if (!own && !mod) {
+      throw ApiException.forbidden();
+    }
+    String md = clean(body);
+    String before =
+        db.sql("SELECT body_md FROM comments WHERE id = ?")
+            .param(commentId)
+            .query(String.class)
+            .single();
+    long now = clock.millis();
+    String html = Markdown.render(md);
+    if (!md.equals(before)) {
+      db.sql("UPDATE comments SET body_md = ?, body_html = ?, edited_at = ? WHERE id = ?")
+          .params(md, html, now, commentId)
+          .update();
+      if (!own) {
+        audit.log(
+            actor,
+            groups.getFirst(),
+            "comment.edit",
+            "comment",
+            commentId,
+            Map.of("text", snippet(before, 120), "parent", parent.id() + ":" + c.targetId()));
+      }
+    }
+    record Saved(long createdAt, boolean hidden, Long editedAt) {}
+    Saved saved =
+        db.sql("SELECT created_at, hidden, edited_at FROM comments WHERE id = ?")
+            .param(commentId)
+            .query(
+                (rs, i) ->
+                    new Saved(
+                        rs.getLong(1), Rows.bool(rs, "hidden"), Rows.longOrNull(rs, "edited_at")))
+            .single();
+    Long authorId = c.authorId();
+    Person author =
+        people.get(authorId == null ? Map.of() : people.load(List.of(authorId)), authorId);
+    return new Comment(
+        commentId,
+        author,
+        html,
+        saved.createdAt(),
+        saved.hidden(),
+        true,
+        mod,
+        true,
+        md,
+        saved.editedAt());
   }
 
   private record C(String type, long targetId, Long authorId) {}

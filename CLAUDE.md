@@ -746,6 +746,16 @@ SemVer (бета младше выпуска). Заметки – раздел `
   (`view_group`), `myDone` – только свои отметки. Фронт – `content/Leaderboard.svelte` (лениво),
   вкладка «Рейтинг» в «Участниках» (`?tab=rating`). Классы `.stats` и `.list` в нём не брать –
   глобальные в app.css. e2e – `29-rating`.
+- Смена темы, дизайна и цвета (1.0.4) – `theme.ts smoothly()`: View Transitions, вся страница
+  растворяется одним снимком (`::view-transition-old/new(root)` 240 мс; при `data-nav` – без
+  анимации). Класса `theme-switching` и `* { transition }` больше нет: `setStyle` его не снимал, и
+  после смены дизайна всё «переливалось» при каждом переходе. На время смены раздела у `.sidebar` и
+  `.bottom-nav` переходы выключены – снимок сразу с новой подсветкой. Применение – кадром позже: в
+  e2e ждать (`expect.poll`), а не читать атрибут сразу.
+- Правка комментариев (1.0.4): `comments.edited_at` (V38), `PATCH /api/comments/{id} {body}`
+  (`CommentService.edit`: свой – автор, любой – `moderate_content`; чужой – аудит `comment.edit`, в
+  `ModerationService.LOG_ACTIONS`), в ответе `canEdit`, `bodyMd` (только тем, кто может править),
+  `editedAt`. Фронт – на месте в `Comments.svelte`, e2e – `30-comment-edit`.
 - Репозиторий – `mitaro-cs/Campus` (переименован из StorageSystem): `UpdateCheck.LATEST`,
   `VapidKeys.PROJECT`, ссылка выпуска в `StatusController`, `tauri.conf.json` (обновление
   оболочки). `UpdateCheck` идёт по перенаправлениям (`Redirect.NORMAL`): на старый адрес GitHub
