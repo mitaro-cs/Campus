@@ -56,6 +56,9 @@ for _ in $(seq 1 120); do
 	sleep 1
 done
 [ -n "$port" ] || fail "сервер приложения не ответил за 2 минуты"
+# Окно хоста – на своём порту (1.0.3): туннель и локальная сеть ведут на основной.
+wport=$(sed -n 's/^window\.port=//p' "$DATA/desktop.properties" 2>/dev/null || true)
+wport=${wport:-$port}
 
 curl -sf -D - -o /dev/null "http://127.0.0.1:$port/" | grep -qi '^x-groupbase: 1' ||
 	fail "главная страница пришла не от сервера groupbase"
@@ -64,7 +67,7 @@ curl -sf -D - -o /dev/null "http://127.0.0.1:$port/" | grep -qi '^x-groupbase: 1
 # на /api/desktop/enter: так было, пока service worker подменял ответ входа.
 opened() {
 	for _ in $(seq 1 60); do
-		grep -q "127.0.0.1:$port/setup" "$DATA/logs/shell.log" 2>/dev/null && return 0
+		grep -q "127.0.0.1:$wport/setup" "$DATA/logs/shell.log" 2>/dev/null && return 0
 		sleep 1
 	done
 	return 1
@@ -86,4 +89,7 @@ start
 opened || fail "при втором запуске окно не открыло сайт"
 no_loop "второй запуск"
 stop
-echo "Приложение запустилось дважды: сервер на порту $port, окно открывает сайт без зацикливания."
+# Порт окна не меняется между запусками: иначе окно теряет тему, оформление и кеш.
+w2=$(sed -n 's/^window\.port=//p' "$DATA/desktop.properties" 2>/dev/null || true)
+[ "${w2:-$port}" = "$wport" ] || fail "порт окна сменился между запусками ($wport → $w2)"
+echo "Приложение запустилось дважды: сервер на порту $port, окно на $wport открывает сайт без зацикливания."

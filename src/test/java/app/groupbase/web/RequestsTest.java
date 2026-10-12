@@ -30,4 +30,22 @@ class RequestsTest {
     assertThat(local("")).isFalse();
     assertThat(local("evil.example")).isFalse();
   }
+
+  @Test
+  void withAWindowPortOnlyThatPortIsThisComputer() {
+    // Туннельный клиент подключается к основному порту с 127.0.0.1 – это не окно хоста.
+    Requests.windowPort(40123);
+    try {
+      MockHttpServletRequest tunnel = new MockHttpServletRequest();
+      tunnel.setRemoteAddr("127.0.0.1");
+      tunnel.setLocalPort(8080);
+      assertThat(Requests.fromThisComputer(tunnel)).isFalse();
+      MockHttpServletRequest window = new MockHttpServletRequest();
+      window.setRemoteAddr("127.0.0.1");
+      window.setLocalPort(40123);
+      assertThat(Requests.fromThisComputer(window)).isTrue();
+    } finally {
+      Requests.windowPort(0);
+    }
+  }
 }

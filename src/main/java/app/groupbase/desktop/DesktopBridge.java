@@ -72,7 +72,9 @@ public class DesktopBridge {
 
   public DesktopBridge(GroupbaseProperties props, Clock clock) {
     this.enabled = props.desktop().enabled();
-    this.port = props.http().port();
+    // Окно хоста – на своём порту, если он есть (1.0.3), иначе на основном.
+    this.port =
+        props.desktop().windowPort() > 0 ? props.desktop().windowPort() : props.http().port();
     this.clock = clock;
   }
 
@@ -126,6 +128,7 @@ public class DesktopBridge {
       return;
     }
     restart.set(true);
+    goingDown();
     event("restart", Map.of());
     onRestart.run();
   }
@@ -191,6 +194,25 @@ public class DesktopBridge {
   /** Оболочка останавливает сервер, чтобы поставить обновление, — он скоро вернётся. */
   public void markUpdating() {
     updating = true;
+    goingDown();
+  }
+
+  /** Кто хочет знать, что сервер сейчас остановится и скоро вернётся (1.0.3: живые страницы). */
+  private final java.util.List<Runnable> goingDown =
+      new java.util.concurrent.CopyOnWriteArrayList<>();
+
+  public void onGoingDown(Runnable r) {
+    goingDown.add(r);
+  }
+
+  private void goingDown() {
+    for (Runnable r : goingDown) {
+      try {
+        r.run();
+      } catch (RuntimeException e) {
+        // Оповещение – не повод мешать остановке.
+      }
+    }
   }
 
   public boolean updating() {

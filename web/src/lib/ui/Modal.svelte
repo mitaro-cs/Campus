@@ -184,13 +184,13 @@
 		font-size: 19px;
 		letter-spacing: -0.01em;
 	}
+	/* Подзаголовок – целиком, переносом (на телефоне обрезка прятала смысл). */
 	.ttl p {
 		margin: 2px 0 0;
 		font-size: 13px;
+		line-height: 1.35;
 		color: var(--text-2);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		text-wrap: pretty;
 	}
 	.x {
 		display: grid;

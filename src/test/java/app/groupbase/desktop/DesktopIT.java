@@ -277,4 +277,18 @@ class DesktopIT extends IntegrationTest {
     assertThat(host.get("/api/me").json().get("user").get("manageMode").asBoolean()).isFalse();
     host.patch("/api/me/preferences", Map.of("manageMode", true));
   }
+
+  @Test
+  void nightUpdatesAreOnByDefaultAndCanBeTurnedOff() {
+    var a = admin();
+    assertThat(a.get("/api/admin/updates/night").json().get("night").asBoolean()).isTrue();
+    assertThat(
+            a.put("/api/admin/updates/night", java.util.Map.of("night", false))
+                .json()
+                .get("night")
+                .asBoolean())
+        .isFalse();
+    assertThat(a.get("/api/admin/updates/night").json().get("night").asBoolean()).isFalse();
+    a.put("/api/admin/updates/night", java.util.Map.of("night", true));
+  }
 }

@@ -31,10 +31,14 @@
 	// анимация смены раздела (пока код не пришёл – без неё), разделы заранее (через 2,5 с).
 	let extras = $state<typeof import('$lib/shell/extras')>();
 	onMount(() => {
+		let stopRum: (() => void) | undefined;
 		import('$lib/shell/extras').then((m) => {
 			extras = m;
 			setTimeout(m.warm, 2500);
+			// Окно на компьютере хоста не меряется – оно в той же машине, что сервер.
+			if (session.me && !session.me.hostWindow) stopRum = m.startRum();
 		});
+		return () => stopRum?.();
 	});
 	onNavigate((n) => extras?.transition(n));
 	onMount(startBell);
@@ -196,7 +200,7 @@
 	<div class="main-col">
 		{#if !detail}<div class="mobile-only"><MobileBar /></div>{/if}
 		<!-- Связь с сервером: небольшая плашка над страницей (данные – из копии на устройстве). -->
-		{#if (pwa.offline || offline.pending) && extras}<extras.NetPill />{/if}
+		{#if (pwa.offline || offline.pending || pwa.restarting) && extras}<extras.NetPill />{/if}
 		<main id="content" tabindex="-1" class:narrow class:wide>
 			<!-- Предмет → предмет – та же страница: полоса предметов остаётся на месте, а содержимое
 			     въезжает сбоку (страница предмета анимирует его сама). -->

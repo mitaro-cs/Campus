@@ -58,4 +58,22 @@ class FileTextTest {
         .isEqualTo("# Елка\nтекст");
     assertThat(FileText.extract("d.jpg", "image/jpeg", new byte[] {1, 2})).isEmpty();
   }
+
+  @Test
+  void manyHugePartsStopAtTheTotalLimit() throws Exception {
+    // Презентация из множества больших слайдов: читается не больше MAX_TOTAL, без падения.
+    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+    byte[] slide = ("<a:p>" + "слово ".repeat(1000) + "</a:p>").getBytes(StandardCharsets.UTF_8);
+    try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(out)) {
+      z.setLevel(9);
+      for (int i = 1; i <= 3000; i++) {
+        z.putNextEntry(new java.util.zip.ZipEntry("ppt/slides/slide" + i + ".xml"));
+        z.write(slide);
+        z.closeEntry();
+      }
+    }
+    String text = FileText.extract("big.pptx", null, out.toByteArray());
+    assertThat(text).startsWith("слово");
+    assertThat(text.length()).isLessThanOrEqualTo(FileText.MAX_CHARS);
+  }
 }

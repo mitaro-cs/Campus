@@ -30,6 +30,36 @@ class DesktopConfigTest {
   }
 
   @Test
+  void windowPortIsKeptBetweenLaunchesAndNeverTheMainOne(@TempDir Path data) throws IOException {
+    int main;
+    int window;
+    try (ServerSocket a = new ServerSocket(0, 0, InetAddress.getLoopbackAddress());
+        ServerSocket b = new ServerSocket(0, 0, InetAddress.getLoopbackAddress())) {
+      main = a.getLocalPort();
+      window = b.getLocalPort();
+    }
+    java.nio.file.Files.writeString(
+        data.resolve(DesktopConfig.FILE), "port=" + main + "\nwindow.port=" + window + "\n");
+    DesktopConfig c = DesktopConfig.load(data);
+    c.choosePort();
+    // Тот же порт окна при каждом запуске: тема и кеш окна хранятся по адресу с портом.
+    assertThat(c.chooseWindowPort()).isEqualTo(window);
+    assertThat(DesktopConfig.load(data).chooseWindowPort()).isEqualTo(window);
+
+    try (ServerSocket busy = new ServerSocket(window, 0, InetAddress.getLoopbackAddress())) {
+      assertThat(busy.isBound()).isTrue();
+      int moved = DesktopConfig.load(data).chooseWindowPort();
+      assertThat(moved).isNotEqualTo(window).isNotEqualTo(main);
+      assertThat(DesktopConfig.load(data).chooseWindowPort()).isEqualTo(moved);
+    }
+
+    // Порт окна совпал с основным (правка руками) – берётся другой.
+    java.nio.file.Files.writeString(
+        data.resolve(DesktopConfig.FILE), "port=" + main + "\nwindow.port=" + main + "\n");
+    assertThat(DesktopConfig.load(data).chooseWindowPort()).isNotEqualTo(main);
+  }
+
+  @Test
   void lanSwitchIsPersisted(@TempDir Path data) throws IOException {
     DesktopConfig c = DesktopConfig.load(data);
     assertThat(c.lan()).isFalse();

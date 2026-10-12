@@ -87,7 +87,13 @@ public record GroupbaseProperties(
    * HTTP на 127.0.0.1, участники — по HTTPS через туннель. Поэтому Secure у cookie и HSTS решаются
    * для каждого запроса отдельно.
    */
-  public record Desktop(@DefaultValue("false") boolean enabled) {}
+  /**
+   * @param windowPort отдельный порт окна хоста (1.0.3): только 127.0.0.1, туннель и локальная сеть
+   *     на него не ведут – «с этого компьютера» значит «пришло на этот порт», а не только «адрес
+   *     127.0.0.1» (туннельный клиент подключается к серверу тоже с 127.0.0.1); 0 – без него
+   */
+  public record Desktop(
+      @DefaultValue("false") boolean enabled, @DefaultValue("0") int windowPort) {}
 
   public Path backupsDir() {
     return backup.dir().isBlank() ? dataDir.resolve("backups") : Path.of(backup.dir());

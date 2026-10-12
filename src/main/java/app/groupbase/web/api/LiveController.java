@@ -35,13 +35,14 @@ class LiveController {
     // Прокси и туннели не должны копить поток: события нужны сразу.
     res.setHeader("X-Accel-Buffering", "no");
     res.setHeader("Cache-Control", "no-cache, no-transform");
-    return live.subscribe(actor.id());
+    return live.subscribe(actor.id(), actor.local());
   }
 
   /** Номер состояния одним коротким ответом – запасной путь, когда поток не доходит. */
   @GetMapping("/api/live/seq")
-  Map<String, Long> seq(Actor actor, HttpServletResponse res) {
+  Map<String, Object> seq(Actor actor, HttpServletResponse res) {
     res.setHeader("Cache-Control", "no-store");
-    return Map.of("seq", live.current(actor.id()));
+    return Map.of(
+        "seq", live.current(actor.id(), actor.local()), "restarting", live.isRestarting());
   }
 }

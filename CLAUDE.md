@@ -226,7 +226,10 @@ SemVer (бета младше выпуска). Заметки – раздел `
 
 - Иконки предметов — `web/src/lib/subjectIcons.ts` (ключи = `subjects.icon`, подбор по названию).
 - Просмотр файлов — `lib/files/FileViewer.svelte` (`openFiles()` из `viewer.svelte.ts`), PDF через
-  pdf.js (`PdfView.svelte`, воркер кешируется лениво — см. `LAZY` в service-worker).
+  pdf.js (`PdfView.svelte`, воркер кешируется лениво — см. `LAZY` в service-worker). Пальцем
+  (1.0.3, только `pointerType === 'touch'`): файл едет за пальцем (`drag`), > 60 px – соседний
+  въезжает со стороны `dir`; касание левых/правых 30 % картинки – назад/вперёд, середина – двойное
+  касание (приблизить). Пальцем по кругу не листаем (`has`), стрелками – можно.
 - Фон входа — `lib/appearance.ts` + классы `.login-bg-*` в `app.css`; сервер — `avatars/LoginBackground`.
 - Свои настройки — `/profile` (шестерёнка у имени в боковой панели; на телефоне — «Профиль»):
   разделы «Аккаунт» (`lib/profile/AccountPanel`, `SecurityPanel`; «Мои данные» убраны в 0.7,
@@ -680,6 +683,49 @@ SemVer (бета младше выпуска). Заметки – раздел `
   `file_text` (статус) и FTS5 `file_search` (V37). `SearchService` вид `file` – с теми же правами,
   что материалы, вложения заданий и новостей; фильтр `subject`, `sort=new`. Запрос
   (`SearchQuery.fts`): `"фраза"` – подряд без основы слова, `-слово` – NOT (только запрет – пусто).
+- Нагрузка недели (1.0.3): `content/weekLoad.ts` (семь дней с сегодняшнего по местной полуночи, вес
+  по виду – `WEIGHT`, уровни 0–4, `describe`, `peak`) и `content/WeekLoad.svelte` – сводка «N на
+  неделе» и столбики (тёплая шкала `--amber` → `--danger`, не акцент: в «Классике» он чёрный).
+  На «Сегодня» – из ленивого `todayExtras`, место занято `.week-load` (`min-height` = высота блока,
+  подпись пика в одну строку); день – к `#day-<полночь>` в «Дедлайнах». Данные – те же `upcoming`.
+- Скорость у группы (1.0.3): `lib/rum.ts` (из ленивого `shell/extras`, не в окне хоста) – замеры
+  `PerformanceObserver` по `/api/` (без `/api/live` и самих замеров) и загрузка страницы, раз в
+  3 мин `POST /api/monitor/timings {device, net, via, api[], load}` (`request`, не `api`: не трогает
+  кеш и очередь). Сервер – `status/ClientTimings` (сутки по часам, ключ «устройство × сеть × путь»,
+  не чаще раза в минуту от человека, `timings.json`), `GET /api/admin/monitor/clients`. Ручка – в
+  `QUIET` `LiveBumpFilter`, мимо `MonitorFilter` и `PeerForwardFilter`. Фронт – `settings/monitor/ClientTable`.
+- Копии (1.0.3): `BackupService.verify` (весь zip читается – CRC, база – `PRAGMA integrity_check`)
+  **до** ротации – сломанная копия удаляется и не вытесняет хорошие. Второй диск – `backup/Drives`
+  (тома Windows / `/Volumes` / `/media`, `/mnt`; без диска данных и системы; путь только из
+  найденных), `settings` `backup.mirror`, `PUT /api/admin/backups/mirror {path}`; `syncMirror` –
+  после копии и раз в 20 мин (`BackupJob`): копия → `.part` → SHA-256 → на место, там тоже `keep`.
+- Архив вручную (1.0.3): `POST /api/groups/{id}/semesters {name, manual: true}` – пустой архив,
+  `POST /api/semesters/{id}/subjects {name…}` – `SemesterService.addSubject` (создать и сразу в
+  архив). Архивному предмету уведомлений нет (`Notifier.followers`). Фронт – «Прошлый семестр» и
+  «Добавить предмет» в `SemesterArchive`; пустые архивы видны тем, кто ведёт предметы.
+- Окно хоста – свой порт (аудит 1.0.3): постоянный порт 127.0.0.1 (`DesktopConfig.chooseWindowPort`,
+  `desktop.properties` `window.port`, по умолчанию 17381; занят – другой, и он запоминается: тема и кеш
+  окна живут по адресу с портом; `scripts/desktop-smoke.sh` ждёт окно на нём и сверяет его между запусками) →
+  `groupbase.desktop.window-port` → второй вход Tomcat (`web/WindowConnector`), `DesktopBridge.localUrl`
+  ведёт туда. `Requests.fromThisComputer` при заданном порте окна требует **его** (`req.getLocalPort()`),
+  не только 127.0.0.1: туннельный клиент на компьютере хоста подключается к основному порту тоже с
+  127.0.0.1. Отчёт аудита – `docs/security-audit-1.0.3.md`; изоляция групп по содержимому –
+  `GroupIsolationIT.contentOfAnotherGroupIsNeitherVisibleNorChangeable`.
+- Пределы (аудит 1.0.3): `LiveUpdates.MAX_STREAMS` (8 потоков на аккаунт, лишние – старые –
+  закрываются), `FileText.MAX_TOTAL`/`MAX_PARTS` (части docx/pptx вместе), PDF – временные файлы.
+  Возврат после входа – `lib/auth/next.ts safeNext` (разбор URL, только свой источник).
+- Бесшовное обновление (1.0.3): `updating` от оболочки (и любой перезапуск `requestRestart`) →
+  `DesktopBridge.onGoingDown` → `sync/RestartNotice` → `LiveUpdates.restarting()`: SSE-событие
+  `restarting`, флаг в `hello` и в `/api/live/seq` (старый сервер до остановки не примут за
+  вернувшийся). Фронт – `live.ts restarting()`: `pwa.restarting` → плашка «Campus обновляется»
+  (`NetPill`), запись – в очередь (как без сети); вернулся (hello/опрос без флага) – `flushOutbox`,
+  `syncNow`, `registration.update()`; не вернулся за 3 мин – обычная «Сервер не работает». Ночное
+  обновление – `status/QuietUpdater` (раз в минуту; есть версия от оболочки, `updates.night` не
+  `off`, 10 мин нет никого, кроме окна хоста – `LiveUpdates.anyoneRemote`, локальные потоки и
+  опросы помечены `actor.local()`; с 2 до 6 – `bridge.requestUpdate()` раз на версию), `GET/PUT
+  /api/admin/updates/night`, переключатель в `UpdatesPanel`. Быстрый старт: `scripts/jre.sh`
+  `--generate-cds-archive` (не вышло – без него), оболочка – `-XX:+AutoCreateSharedArchive
+  -XX:SharedArchiveFile=<кэш приложения>/cds/campus-<версия>.jsa` (ошибка записи не мешает запуску).
 - Репозиторий – `mitaro-cs/Campus` (переименован из StorageSystem): `UpdateCheck.LATEST`,
   `VapidKeys.PROJECT`, ссылка выпуска в `StatusController`, `tauri.conf.json` (обновление
   оболочки). `UpdateCheck` идёт по перенаправлениям (`Redirect.NORMAL`): на старый адрес GitHub

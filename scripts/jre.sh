@@ -38,7 +38,13 @@ set -- --add-modules "$LIST" --output "$OUT" --strip-debug --no-man-pages --no-h
 if [ -d "$JMODS" ]; then
 	set -- --module-path "$JMODS" "$@"
 fi
-"$JLINK" "$@"
+# Архив классов Java (1.0.3): сервер в приложении стартует на ~20 % быстрее – короче перерыв при
+# обновлении. Для чужой архитектуры (Intel-сборка на ARM) jlink его не сделает – тогда без него.
+if ! "$JLINK" "$@" --generate-cds-archive; then
+	echo "Архив классов не собран – рантайм без него"
+	rm -rf "$OUT"
+	"$JLINK" "$@"
+fi
 # jlink делает часть файлов (лицензии) только для чтения — сборщику приложения нужно их трогать.
 chmod -R u+w "$OUT"
 echo "Рантайм: $OUT ($(du -sh "$OUT" | cut -f1))"

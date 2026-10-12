@@ -86,6 +86,8 @@ public class DesktopCommand implements Callable<Integer> {
       props.put("groupbase.http.port", String.valueOf(port));
       props.put("groupbase.http.address", net.bindAddress());
       props.put("groupbase.desktop.enabled", "true");
+      // Свой постоянный порт окна: данные окна (тема, кеш) браузер хранит по адресу с портом.
+      props.put("groupbase.desktop.window-port", String.valueOf(net.chooseWindowPort()));
       ctx = AppContext.desktop(data, props, msg -> out.event("status", Map.of("message", msg)));
     } catch (Exception e) {
       Problem p = problem(e);
