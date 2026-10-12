@@ -67,6 +67,7 @@
 
 	function onkeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && picking) {
+			e.preventDefault();
 			e.stopPropagation();
 			picking = false;
 		}

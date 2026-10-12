@@ -471,16 +471,6 @@
 	}
 }
 
-/* Плавная смена темы – только в момент переключения, чтобы не мигало при загрузке. */
-:root.theme-switching,
-:root.theme-switching * {
-	transition:
-		background-color 250ms var(--ease),
-		border-color 250ms var(--ease),
-		color 250ms var(--ease),
-		fill 250ms var(--ease) !important;
-}
-
 *,
 *::before,
 *::after {
@@ -1375,10 +1365,21 @@ button.list-row:active {
 ::view-transition-old(bottom-nav) {
 	display: none;
 }
-::view-transition-old(root),
-::view-transition-new(root),
+/* Смена раздела: фон и панели – без растворения (смена темы – lib/theme.ts – растворяет). */
+:root[data-nav]::view-transition-old(root),
+:root[data-nav]::view-transition-new(root),
 ::view-transition-group(page) {
 	animation: none;
+}
+/* Смена темы: вся страница растворяется в новую одним снимком. */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 240ms;
+}
+/* Подсветка пунктов панелей на время смены раздела – сразу: снимок новой страницы иначе ловил
+   начало плавной смены цвета, и после перехода старая подсветка мигала и гасла (1.0.4). */
+:root[data-nav] :is(.sidebar, .bottom-nav) * {
+	transition: none !important;
 }
 ::view-transition-old(page) {
 	display: none;

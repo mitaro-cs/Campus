@@ -124,6 +124,10 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
 			: await f(path, { method, headers, body, signal, credentials: 'same-origin' });
 	} catch (e) {
 		if ((e as Error).name === 'AbortError' && opts.signal?.aborted) throw e;
+		// Никто не ответил – ни сервер, ни туннель: нет интернета у самого человека (1.0.3). Браузер
+		// считает себя «в сети» и при Wi-Fi без интернета, и без мобильного сигнала. Долгий ответ –
+		// не повод: это может быть и медленный сервер.
+		if ((e as Error).name !== 'TimeoutError') pwa.network = false;
 		// Причина – в тексте: по скриншоту видно, сеть это или медленный сервер (0.9.7).
 		throw new ApiError(
 			0,
@@ -137,6 +141,8 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
 	// ошибки (HTML). Это то же, что нет сети: показываем сохранённое, действия уходят в очередь.
 	// Ответ в JSON – всегда наш, даже если туннель потерял метку X-Groupbase (0.9.7: туннели могут
 	// не передавать свои заголовки, и тогда «не работало ничего»).
+	// Ответил хоть кто-то – интернет у человека есть.
+	pwa.network = true;
 	if (!fromGroupServer(res)) {
 		throw new ApiError(0, 'network', `Сервер группы выключен (туннель: ${res.status})`);
 	}

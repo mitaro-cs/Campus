@@ -10,19 +10,29 @@ export function currentTheme(): Theme {
 	}
 }
 
-/** Переключает тему с плавным переходом цветов (класс снимается после анимации). */
+/**
+ * Смена оформления плавно (1.0.4): вся страница растворяется в новую одним снимком (View
+ * Transitions), а не каждый элемент по отдельности – раньше цвета панелей менялись за 250 мс, а фон
+ * сразу, и боковая панель мерцала. Нет поддержки или «меньше движения» – сразу.
+ */
+export function smoothly(apply: () => void) {
+	if (document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches)
+		document.startViewTransition(apply);
+	else apply();
+}
+
+/** Переключает тему (плавно – smoothly) и запоминает на этом устройстве. */
 export function setTheme(theme: Theme) {
 	const root = document.documentElement;
-	root.classList.add('theme-switching');
-	if (theme === 'system') root.removeAttribute('data-theme');
-	else root.setAttribute('data-theme', theme);
+	smoothly(() =>
+		theme === 'system' ? root.removeAttribute('data-theme') : root.setAttribute('data-theme', theme)
+	);
 	try {
 		if (theme === 'system') localStorage.removeItem(KEY);
 		else localStorage.setItem(KEY, theme);
 	} catch {
 		/* приватный режим – просто не запоминаем */
 	}
-	setTimeout(() => root.classList.remove('theme-switching'), 300);
 	// Кнопка темы в панели, «Оформление» и палитра команд показывают одно и то же.
 	window.dispatchEvent(new CustomEvent<Theme>(THEME_EVENT, { detail: theme }));
 }
@@ -69,16 +79,15 @@ export function currentStyle(): Style {
 /** Меняет стиль сразу, с плавным переходом, и запоминает на этом устройстве. */
 export function setStyle(style: Style) {
 	const root = document.documentElement;
-	root.classList.add('theme-switching');
-	if (style === 'plain') root.removeAttribute('data-style');
-	else root.setAttribute('data-style', style);
+	smoothly(() =>
+		style === 'plain' ? root.removeAttribute('data-style') : root.setAttribute('data-style', style)
+	);
 	try {
 		if (style === 'plain') localStorage.removeItem(STYLE_KEY);
 		else localStorage.setItem(STYLE_KEY, style);
 	} catch {
 		/* приватный режим – просто не запоминаем */
 	}
-	setTimeout(() => root.classList.remove('theme-switching'), 300);
 	// Оформление общее для всех устройств – lib/looksSync.ts отправит его на сервер.
 	window.dispatchEvent(new Event('gb:looks'));
 }

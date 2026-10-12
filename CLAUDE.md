@@ -229,7 +229,9 @@ SemVer (бета младше выпуска). Заметки – раздел `
   pdf.js (`PdfView.svelte`, воркер кешируется лениво — см. `LAZY` в service-worker). Пальцем
   (1.0.3, только `pointerType === 'touch'`): файл едет за пальцем (`drag`), > 60 px – соседний
   въезжает со стороны `dir`; касание левых/правых 30 % картинки – назад/вперёд, середина – двойное
-  касание (приблизить). Пальцем по кругу не листаем (`has`), стрелками – можно.
+  касание (приблизить). Пальцем по кругу не листаем (`has`), стрелками – можно. Смена файла
+  (1.0.4) – Svelte-переходы `in/out:slide` в `{#key file.id}`: `.stage` – сетка из одной ячейки,
+  прежний и новый файл лежат друг на друге; первый при открытии – CSS `.first`.
 - Фон входа — `lib/appearance.ts` + классы `.login-bg-*` в `app.css`; сервер — `avatars/LoginBackground`.
 - Свои настройки — `/profile` (шестерёнка у имени в боковой панели; на телефоне — «Профиль»):
   разделы «Аккаунт» (`lib/profile/AccountPanel`, `SecurityPanel`; «Мои данные» убраны в 0.7,
@@ -282,7 +284,7 @@ SemVer (бета младше выпуска). Заметки – раздел `
   студентам ⚙ (выкл.).
 - Расписание (`schedule/`, `/api/schedule`, `/api/lessons/{id}`, страницы `routes/(app)/schedule`):
   таблица `lessons` (группа, предмет или NULL, вид, начало/конец, аудитория, тема, `source` — UID
-  события из файла: повторная загрузка обновляет, а не дублирует), `homework.lesson_id` и
+  события из файла), `homework.lesson_id` и
   `materials.lesson_id` — «к паре». Файл .ics разбирает сервер (`Ics`: RRULE DAILY/WEEKLY/MONTHLY,
   EXDATE, RDATE, RECURRENCE-ID, пояса Windows; весь день и старше 120 дней — пропуск; до 3000 пар),
   названия → предметы — `Titles` (вид по словам «лек/пр/лаб/сем…», сокращения «физра», «матан»,
@@ -455,8 +457,16 @@ SemVer (бета младше выпуска). Заметки – раздел `
   `files-v1` на устройстве — `lib/offline/files.ts shareMissing` после синхронизации (раз в 10 мин)
   спрашивает `POST /api/files/missing {ids}` и шлёт `PUT /api/files/{id}/content`
   (`FileStore.restore`: размер и SHA-256 — как в базе, иначе 409 `file_mismatch`).
-- Плашка связи (0.9) — `.net` в макете `(app)`: «Нет сети» (нет интернета), «Сервер не работает»
+- Плашка связи (0.9) — `.net` в макете `(app)`: «Вы не в сети» (нет интернета), «Сервер не работает»
   (`pwa.network` есть, ответа сервера с `X-Groupbase` нет), «Отправляем» + число в очереди.
+  `pwa.network` (1.0.4) – не только `navigator.onLine`: `request()` ставит false, когда fetch упал
+  без ответа (не ответил даже туннель; тайм-аут не в счёт), и true при любом ответе. Проверка «не
+  вернулся ли сервер» раз в 30 с – в `NetPill` (лениво, видна, пока его нет), не в макете.
+- Esc (1.0.4, `lib/shell/escape.ts holdEscape`, из `shell/extras`): всегда `preventDefault` – иначе
+  в полноэкранном окне macOS (Safari, окно хоста) необработанный Esc выводит из полноэкранного
+  режима; сам закрывает верхнее – открытый popover, иначе `dialog` (событие `cancel`, затем
+  `close()`). Свои обработчики Esc должны вызывать `preventDefault` (палитра, меню, поля дат, тур,
+  реакции) – тогда `holdEscape` их не трогает.
 - Правила сайта (0.9): `accounts/Terms` (версия «1.N»: база текста — на фронте
   `lib/terms/TermsText.svelte`, N растёт с правкой правил группы, `settings` `terms.*`),
   `users.terms_accepted` (V28), `GET /api/terms`, `PUT /api/admin/terms`, согласие — `PATCH
@@ -726,6 +736,26 @@ SemVer (бета младше выпуска). Заметки – раздел `
   /api/admin/updates/night`, переключатель в `UpdatesPanel`. Быстрый старт: `scripts/jre.sh`
   `--generate-cds-archive` (не вышло – без него), оболочка – `-XX:+AutoCreateSharedArchive
   -XX:SharedArchiveFile=<кэш приложения>/cds/campus-<версия>.jsa` (ошибка записи не мешает запуску).
+- Загрузка расписания (1.0.4, просьба владельца: «старое не трогать совершенно») –
+  `LessonService.importIcs` только добавляет: пара с тем же `source` или тем же временем и
+  названием (`slots`, `Titles.key`) пропускается (`kept`), существующие не меняются и не удаляются.
+  Предпросмотр – `already` (сколько из файла уже есть). Убрать всё – «Очистить расписание».
+- Рейтинг активности (1.0.4): `content/Activity` (очки: материал и задание – 3, новость – 2,
+  комментарий – 1; реакции и дни – без очков; только видимое группе, скрытое и на проверке – нет;
+  неделя и месяц – скользящие 7 и 30 дней), `GET /api/groups/{id}/activity?period=week|month|all`
+  (`view_group`), `myDone` – только свои отметки. Фронт – `content/Leaderboard.svelte` (лениво),
+  вкладка «Рейтинг» в «Участниках» (`?tab=rating`). Классы `.stats` и `.list` в нём не брать –
+  глобальные в app.css. e2e – `29-rating`.
+- Смена темы, дизайна и цвета (1.0.4) – `theme.ts smoothly()`: View Transitions, вся страница
+  растворяется одним снимком (`::view-transition-old/new(root)` 240 мс; при `data-nav` – без
+  анимации). Класса `theme-switching` и `* { transition }` больше нет: `setStyle` его не снимал, и
+  после смены дизайна всё «переливалось» при каждом переходе. На время смены раздела у `.sidebar` и
+  `.bottom-nav` переходы выключены – снимок сразу с новой подсветкой. Применение – кадром позже: в
+  e2e ждать (`expect.poll`), а не читать атрибут сразу.
+- Правка комментариев (1.0.4): `comments.edited_at` (V38), `PATCH /api/comments/{id} {body}`
+  (`CommentService.edit`: свой – автор, любой – `moderate_content`; чужой – аудит `comment.edit`, в
+  `ModerationService.LOG_ACTIONS`), в ответе `canEdit`, `bodyMd` (только тем, кто может править),
+  `editedAt`. Фронт – на месте в `Comments.svelte`, e2e – `30-comment-edit`.
 - Репозиторий – `mitaro-cs/Campus` (переименован из StorageSystem): `UpdateCheck.LATEST`,
   `VapidKeys.PROJECT`, ссылка выпуска в `StatusController`, `tauri.conf.json` (обновление
   оболочки). `UpdateCheck` идёт по перенаправлениям (`Redirect.NORMAL`): на старый адрес GitHub

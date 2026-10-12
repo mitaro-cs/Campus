@@ -26,7 +26,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -98,8 +97,7 @@ public class LessonService {
 
   /**
    * @param existing пар у группы уже есть
-   * @param replaced из них уйдут при замене: загружены из файла раньше, стоят с первой даты нового
-   *     файла и дальше, а в нём их нет
+   * @param already из файла уже есть в расписании – их загрузка пропустит, не трогая (1.0.4)
    */
   public record Preview(
       int lessons,
@@ -111,7 +109,7 @@ public class LessonService {
       int unsupported,
       int past,
       int existing,
-      int replaced) {}
+      int already) {}
 
   /**
    * @param action subject — к предмету subjectId, create — создать предмет, none — без предмета,
@@ -119,12 +117,13 @@ public class LessonService {
    */
   public record Choice(String key, String action, Long subjectId) {}
 
-  /**
-   * @param replace убрать пары прежней загрузки с первой даты файла, которых в нём нет
-   */
-  public record ImportInput(String ics, List<Choice> choices, Boolean replace) {}
+  public record ImportInput(String ics, List<Choice> choices) {}
 
-  public record Imported(int created, int updated, int deleted, int skipped, int subjects) {}
+  /**
+   * @param kept пар из файла уже было в расписании – они остались как есть
+   * @param skipped названий «не загружать»
+   */
+  public record Imported(int created, int kept, int skipped, int subjects) {}
 
   private record Row(
       long id,
@@ -648,11 +647,22 @@ public class LessonService {
   }
 
   /**
-   * Пары прежней загрузки, которые уйдут при замене: с первой даты нового файла и дальше, но в нём
-   * их нет. Прошлое до начала файла остаётся — с темами, заданиями и материалами.
+   * Пары группы по «время + название»: та же пара, внесённая вручную или из другого файла (с другим
+   * UID), – тоже уже есть, второй раз её не добавляем.
    */
-  private static List<Existing> gone(Collection<Existing> old, Set<String> sources, long from) {
-    return old.stream().filter(x -> !sources.contains(x.source()) && x.start() >= from).toList();
+  private Set<String> slots(long groupId) {
+    Set<String> out = new HashSet<>();
+    db.sql("SELECT starts_at, title FROM lessons WHERE group_id = ?")
+        .param(groupId)
+        .query(
+            rs -> {
+              out.add(slot(rs.getLong(1), rs.getString(2)));
+            });
+    return out;
+  }
+
+  private static String slot(long start, String title) {
+    return start + "|" + Titles.key(title);
   }
 
   /** Одно название в предпросмотре: сколько пар, каких видов, преподаватель, аудитории. */
@@ -688,13 +698,17 @@ public class LessonService {
     Map<String, Acc> titles = new LinkedHashMap<>();
     long from = Long.MAX_VALUE;
     long to = Long.MIN_VALUE;
-    Set<String> sources = new HashSet<>();
+    Map<String, Existing> old = existing(groupId);
+    Set<String> slots = slots(groupId);
+    int already = 0;
     for (Ics.Event e : r.events()) {
       Titles.Parsed t = Titles.parse(e.summary(), e.description(), e.location(), e.categories());
       titles.computeIfAbsent(t.key(), k -> new Acc(t.name())).add(t);
       from = Math.min(from, e.start());
       to = Math.max(to, e.end());
-      sources.add(e.source());
+      if (old.containsKey(e.source()) || slots.contains(slot(e.start(), t.name()))) {
+        already++;
+      }
     }
     List<Title> list =
         titles.entrySet().stream()
@@ -715,7 +729,6 @@ public class LessonService {
             .param(groupId)
             .query(Integer.class)
             .single();
-    int replaced = gone(existing(groupId).values(), sources, from).size();
     return new Preview(
         r.events().size(),
         from,
@@ -726,12 +739,14 @@ public class LessonService {
         r.unsupported(),
         r.past(),
         existingCount,
-        replaced);
+        already);
   }
 
   /**
-   * Загрузить пары из файла. Повторная загрузка того же (или обновлённого) файла обновляет пары, а
-   * не дублирует: тема, задания и материалы к ним остаются. Пары, добавленные вручную, не трогаем.
+   * Загрузить пары из файла – только добавить новые (1.0.4, просьба владельца: «старое не трогать
+   * совершенно»). Пары, которые уже есть в расписании (то же событие файла или то же время и
+   * название), остаются как есть: не меняются и не удаляются – с темой, отметкой «пары не было»,
+   * заданиями и материалами. Повторная загрузка того же файла ничего не задваивает.
    */
   @Transactional
   public Imported importIcs(Actor actor, long groupId, ImportInput in) {
@@ -752,11 +767,10 @@ public class LessonService {
     Map<String, Long> made = new HashMap<>();
     int[] newSubjects = {0};
     Map<String, Existing> old = existing(groupId);
-    Set<String> sources = new HashSet<>();
+    Set<String> slots = slots(groupId);
     long now = clock.millis();
-    long from = Long.MAX_VALUE;
     int created = 0;
-    int updated = 0;
+    int kept = 0;
     int skipped = 0;
     for (Ics.Event e : r.events()) {
       Titles.Parsed t = Titles.parse(e.summary(), e.description(), e.location(), e.categories());
@@ -792,45 +806,14 @@ public class LessonService {
       } else {
         subjectId = Titles.match(t.name(), subjectList);
       }
-      sources.add(e.source());
-      from = Math.min(from, e.start());
       Clean clean =
           new Clean(subjectId, t.name(), t.kind(), e.start(), e.end(), t.place(), t.teacher(), "");
-      Existing x = old.get(e.source());
-      if (x == null) {
-        insert(groupId, clean, e.start(), e.end(), e.source(), actor.id(), now);
-        created++;
-      } else if (!Objects.equals(x.subjectId(), subjectId)
-          || !x.title().equals(t.name())
-          || !x.kind().equals(t.kind().id())
-          || x.start() != e.start()
-          || x.end() != e.end()
-          || !x.place().equals(t.place())
-          || !x.teacher().equals(t.teacher())) {
-        db.sql(
-                """
-                UPDATE lessons SET subject_id = ?, title = ?, kind = ?, starts_at = ?, ends_at = ?,
-                  place = ?, teacher = ?, updated_at = ? WHERE id = ?
-                """)
-            .params(
-                subjectId,
-                t.name(),
-                t.kind().id(),
-                e.start(),
-                e.end(),
-                t.place(),
-                t.teacher(),
-                now,
-                x.id())
-            .update();
-        updated++;
+      if (old.containsKey(e.source()) || !slots.add(slot(e.start(), t.name()))) {
+        kept++;
+        continue;
       }
-    }
-    int deleted = 0;
-    if (!Boolean.FALSE.equals(in.replace()) && !sources.isEmpty()) {
-      for (Existing x : gone(old.values(), sources, from)) {
-        deleted += db.sql("DELETE FROM lessons WHERE id = ?").param(x.id()).update();
-      }
+      insert(groupId, clean, e.start(), e.end(), e.source(), actor.id(), now);
+      created++;
     }
     audit.log(
         actor,
@@ -838,11 +821,8 @@ public class LessonService {
         "schedule.import",
         "group",
         groupId,
-        Map.of(
-            "created", String.valueOf(created),
-            "updated", String.valueOf(updated),
-            "deleted", String.valueOf(deleted)));
-    return new Imported(created, updated, deleted, skipped, newSubjects[0]);
+        Map.of("created", String.valueOf(created), "kept", String.valueOf(kept)));
+    return new Imported(created, kept, skipped, newSubjects[0]);
   }
 
   private long createSubject(Actor actor, long groupId, Titles.Parsed t) {

@@ -74,6 +74,7 @@
 	onclick={onWindowClick}
 	onkeydown={(e) => {
 		if (e.key === 'Escape' && open) {
+			e.preventDefault();
 			hide();
 			trigger?.focus();
 		}

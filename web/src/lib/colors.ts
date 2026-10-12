@@ -1,3 +1,4 @@
+import { smoothly } from './theme';
 /**
  * Цвет интерфейса (Настройки → Оформление): основной цвет (оттенок) и насыщенность. Из них
  * считаются все цвета темы – кнопки, активные пункты, фон страницы и карточек в тёмном режиме – в
@@ -159,12 +160,16 @@ export function currentAccent(): Accent {
 /** Ставит цвет сразу (переменные на <html>) и запоминает на этом устройстве. */
 export function setAccent(a: Accent, smooth = true) {
 	const root = document.documentElement;
-	if (smooth) root.classList.add('theme-switching');
-	const old = Array.from({ length: root.style.length }, (_, i) => root.style.item(i));
-	for (const name of old) if (/^--(pal|mesh|accent-h)/.test(name)) root.style.removeProperty(name);
-	for (const [k, v] of Object.entries(accentVars(a))) root.style.setProperty(k, v);
-	if (a.hue === null) root.removeAttribute('data-accent');
-	else root.setAttribute('data-accent', '');
+	const apply = () => {
+		const old = Array.from({ length: root.style.length }, (_, i) => root.style.item(i));
+		for (const name of old)
+			if (/^--(pal|mesh|accent-h)/.test(name)) root.style.removeProperty(name);
+		for (const [k, v] of Object.entries(accentVars(a))) root.style.setProperty(k, v);
+		if (a.hue === null) root.removeAttribute('data-accent');
+		else root.setAttribute('data-accent', '');
+	};
+	if (smooth) smoothly(apply);
+	else apply();
 	try {
 		localStorage.removeItem('gb-palette');
 		if (a.hue === null && a.sat === DEFAULT_SAT) {
@@ -177,7 +182,6 @@ export function setAccent(a: Accent, smooth = true) {
 	} catch {
 		/* приватный режим – просто не запоминаем */
 	}
-	if (smooth) setTimeout(() => root.classList.remove('theme-switching'), 300);
 	window.dispatchEvent(new Event('gb:looks'));
 }
 

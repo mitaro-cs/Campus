@@ -47,7 +47,7 @@ test('без интернета: читать, отмечать, коммент�
 
 	await ctx.setOffline(true);
 	await page.getByRole('link', { name: 'Домашние задания' }).click();
-	await expect(page.getByRole('status').getByText('Нет сети')).toBeVisible();
+	await expect(page.getByRole('status').getByText('Вы не в сети')).toBeVisible();
 	await page.getByRole('link', { name: 'Типовой расчёт №1' }).first().click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Типовой расчёт №1');
 	const hwId = Number(page.url().split('/').pop());
@@ -60,7 +60,7 @@ test('без интернета: читать, отмечать, коммент�
 	await page.getByRole('button', { name: 'Отправить' }).click();
 	await expect(page.getByText('Сделал без интернета')).toBeVisible();
 	await expect(page.getByText('ждёт отправки').first()).toBeVisible();
-	await expect(page.locator('.net')).toContainText('Нет сети2');
+	await expect(page.locator('.net')).toContainText('Вы не в сети2');
 	await page.screenshot({ path: 'test-results/shots/offline-homework.png', fullPage: true });
 
 	// Перезагрузка без сети: приложение и данные – с устройства.
