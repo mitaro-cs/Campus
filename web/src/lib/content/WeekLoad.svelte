@@ -58,7 +58,6 @@
 				class="day lv{d.level}"
 				class:today={i === 0}
 				disabled={!d.open.length && !d.done}
-				title={label(d)}
 				aria-label={label(d)}
 				onclick={() => onpick(d.day)}
 			>

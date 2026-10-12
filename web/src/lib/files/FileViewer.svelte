@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ChevronLeft, ChevronRight, Download, Minus, Plus, X } from '@lucide/svelte';
+	import { cubicOut } from 'svelte/easing';
 	import { fmtSize } from '$lib/format';
 	import { fileKind, TEXT_LIMIT } from '$lib/fileKinds';
 	import FileIcon from '$lib/content/FileIcon.svelte';
@@ -56,6 +57,19 @@
 		viewer.index = (viewer.index + step + n) % n;
 	}
 
+	// Смена файла (1.0.3): прежний уезжает в сторону листания, новый въезжает следом – оба видны
+	// одновременно (в .stage они в одной ячейке сетки), а не прежний исчезает, а новый появляется.
+	const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+	function slide(_: Element, { out }: { out: boolean }) {
+		const side = out ? -dir : dir;
+		return {
+			duration: still() || !dir ? 0 : 340,
+			easing: cubicOut,
+			css: (t: number) =>
+				`transform: translateX(${(1 - t) * side * 36}%) scale(${0.96 + 0.04 * t}); opacity: ${t}`
+		};
+	}
+
 	function onkey(e: KeyboardEvent) {
 		if (!viewer.open) return;
 		if (e.key === 'ArrowRight') go(1);
@@ -102,12 +116,14 @@
 		const dy = e.clientY - startY;
 		const wasDrag = dragging;
 		dragging = false;
-		drag = 0;
 		if (wasDrag) {
 			const step = dx < 0 ? 1 : -1;
+			// Сначала листаем: прежний файл уезжает с того места, куда его дотащили.
 			if (Math.abs(dx) > 60 && has(step)) go(step);
+			drag = 0;
 			return;
 		}
+		drag = 0;
 		if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && Date.now() - startAt < 350) {
 			const side = sideOf(e.clientX);
 			if (side && kind === 'image' && has(side)) go(side);
@@ -194,9 +210,10 @@
 				<div
 					class="content {kind}"
 					class:dragging
-					style:--from-x="{dir * 64}px"
-					style:--from-y={dir ? '0px' : '6px'}
+					class:first={!dir}
 					style:translate={drag ? `${drag}px 0` : null}
+					in:slide={{ out: false }}
+					out:slide={{ out: true }}
 				>
 					{#if pending}
 						<div class="none">
@@ -347,11 +364,13 @@
 			display: none;
 		}
 	}
+	/* Сетка из одной ячейки: при смене файла прежний и новый лежат друг на друге. */
 	.stage {
 		position: relative;
 		flex: 1;
 		min-height: 0;
-		display: flex;
+		display: grid;
+		grid-template: 1fr / minmax(0, 1fr);
 		overflow: hidden;
 		touch-action: pan-y;
 	}
@@ -360,20 +379,23 @@
 		touch-action: pan-x pan-y;
 	}
 	.content {
+		grid-area: 1 / 1;
 		margin: auto;
 		padding: 12px 12px calc(28px + env(safe-area-inset-bottom));
 		max-width: 100%;
-		animation: content-in 260ms var(--ease);
 		transition: translate 240ms var(--ease);
 	}
 	.content.dragging {
 		transition: none;
 	}
-	/* Соседний файл въезжает с той стороны, куда листали; первый – чуть снизу. */
+	/* Первый файл при открытии – чуть снизу; соседние въезжают сбоку (slide). */
+	.content.first {
+		animation: content-in 260ms var(--ease);
+	}
 	@keyframes content-in {
 		from {
 			opacity: 0;
-			transform: translate(var(--from-x, 0px), var(--from-y, 6px)) scale(0.98);
+			transform: translateY(6px) scale(0.98);
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {

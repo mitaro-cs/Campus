@@ -94,6 +94,14 @@ test('компьютер хоста выключен: вместо ответа 
 	await expect(page.getByText('Типовой расчёт №1').first()).toBeVisible();
 	await page.screenshot({ path: 'test-results/shots/host-offline.png' });
 
+	// Нет интернета у самого человека, хотя браузер считает себя в сети (Wi-Fi без интернета):
+	// не ответил даже туннель – «Вы не в сети», а не «Сервер не работает».
+	await page.unroute('**/api/**');
+	await page.route('**/api/**', (route) => route.abort('internetdisconnected'));
+	await page.getByRole('link', { name: 'Новости' }).first().click();
+	await expect(page.getByRole('status').getByText('Вы не в сети')).toBeVisible();
+	await expect(page.getByText('Сервер не работает')).toHaveCount(0);
+
 	// Сервер вернулся – баннер пропадает при следующем запросе.
 	await page.unroute('**/api/**');
 	await page.getByRole('link', { name: 'Сегодня' }).first().click();

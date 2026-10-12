@@ -9,9 +9,9 @@
 	import { forgetServiceWorker, initPwa, pwa, registerServiceWorker } from '$lib/pwa.svelte';
 	import { startBell } from '$lib/notify.svelte';
 	import { needsWelcome, welcome } from '$lib/onboarding.svelte';
-	import { ApiError, hasFresh, request } from '$lib/api';
+	import { ApiError, hasFresh } from '$lib/api';
 	import { toast } from '$lib/toasts.svelte';
-	import { flushOutbox, initOffline, offline, syncNow } from '$lib/offline/engine';
+	import { initOffline, offline } from '$lib/offline/engine';
 	import { rememberAccount } from '$lib/accounts';
 	import { loadMe, session } from '$lib/session.svelte';
 	import { onMount, untrack } from 'svelte';
@@ -34,6 +34,7 @@
 		let stopRum: (() => void) | undefined;
 		import('$lib/shell/extras').then((m) => {
 			extras = m;
+			m.holdEscape();
 			setTimeout(m.warm, 2500);
 			// Окно на компьютере хоста не меряется – оно в той же машине, что сервер.
 			if (session.me && !session.me.hostWindow) stopRum = m.startRum();
@@ -162,21 +163,7 @@
 		});
 	});
 
-	// Сервер группы недоступен, а интернет есть (выключен компьютер хоста): раз в 30 секунд
-	// проверяем, не вернулся ли он, – и сразу отправляем сделанное без него.
-	$effect(() => {
-		if (!pwa.offline || !pwa.network) return;
-		const id = setInterval(async () => {
-			try {
-				await request('/api/health');
-				await flushOutbox();
-				await syncNow();
-			} catch {
-				/* всё ещё недоступен */
-			}
-		}, 30_000);
-		return () => clearInterval(id);
-	});
+	// Проверка, не вернулся ли сервер, – в плашке связи (NetPill): она видна, пока его нет.
 
 	// Палитра грузится при первом открытии – её код не нужен для первого экрана.
 	let paletteWanted = $state(false);
