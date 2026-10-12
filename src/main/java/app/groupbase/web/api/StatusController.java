@@ -72,7 +72,7 @@ class StatusController {
     return "day".equals(range) ? monitor.view(24 * 60, 15) : monitor.view(60, 1);
   }
 
-  /** Ставить ли обновления самому ночью, когда на сайте никого нет (1.0.2). */
+  /** Ставить ли обновления самому ночью, когда на сайте никого нет (1.0.3). */
   @Require(Permission.MANAGE_INSTANCE)
   @GetMapping("/api/admin/updates/night")
   java.util.Map<String, Boolean> night() {
@@ -87,7 +87,7 @@ class StatusController {
     return java.util.Map.of("night", quiet.enabled());
   }
 
-  /** Скорость у группы (1.0.2): по устройствам, сетям и пути – за сутки. */
+  /** Скорость у группы (1.0.3): по устройствам, сетям и пути – за сутки. */
   @Require(Permission.MANAGE_INSTANCE)
   @GetMapping("/api/admin/monitor/clients")
   java.util.List<app.groupbase.status.ClientTimings.Row> clients() {

@@ -34,7 +34,7 @@ export interface MonitorView {
 	points: MonitorPoint[];
 }
 
-/** Скорость у группы (1.0.2) – GET /api/admin/monitor/clients. */
+/** Скорость у группы (1.0.3) – GET /api/admin/monitor/clients. */
 export interface ClientRow {
 	device: 'phone' | 'tablet' | 'computer';
 	net: 'wifi' | 'cellular' | 'ethernet' | 'other' | 'unknown';

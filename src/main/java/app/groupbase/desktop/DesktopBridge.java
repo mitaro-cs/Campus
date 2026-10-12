@@ -72,7 +72,7 @@ public class DesktopBridge {
 
   public DesktopBridge(GroupbaseProperties props, Clock clock) {
     this.enabled = props.desktop().enabled();
-    // Окно хоста – на своём порту, если он есть (1.0.2), иначе на основном.
+    // Окно хоста – на своём порту, если он есть (1.0.3), иначе на основном.
     this.port =
         props.desktop().windowPort() > 0 ? props.desktop().windowPort() : props.http().port();
     this.clock = clock;
@@ -197,7 +197,7 @@ public class DesktopBridge {
     goingDown();
   }
 
-  /** Кто хочет знать, что сервер сейчас остановится и скоро вернётся (1.0.2: живые страницы). */
+  /** Кто хочет знать, что сервер сейчас остановится и скоро вернётся (1.0.3: живые страницы). */
   private final java.util.List<Runnable> goingDown =
       new java.util.concurrent.CopyOnWriteArrayList<>();
 

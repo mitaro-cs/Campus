@@ -35,7 +35,7 @@ class BackupController {
   /** Диск для дубля: имя, путь и свободное место. */
   record DriveChoice(String label, String path, long free) {}
 
-  /** Второй диск (1.0.2): выбранный (и подключён ли он сейчас) и какие найдены. */
+  /** Второй диск (1.0.3): выбранный (и подключён ли он сейчас) и какие найдены. */
   record MirrorView(DriveChoice chosen, boolean present, List<DriveChoice> drives) {}
 
   record View(

@@ -109,7 +109,7 @@ class LiveIT extends IntegrationTest {
 
   @Test
   void oneAccountCannotHoardStreams() {
-    // Аудит 1.0.2: бесконечные вкладки одного аккаунта не занимают соединения сервера.
+    // Аудит 1.0.3: бесконечные вкладки одного аккаунта не занимают соединения сервера.
     long user = 9_000_000L + (System.nanoTime() % 1000);
     for (int i = 0; i < LiveUpdates.MAX_STREAMS + 5; i++) {
       liveUpdates.subscribe(user);

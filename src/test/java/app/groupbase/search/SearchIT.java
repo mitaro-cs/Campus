@@ -262,7 +262,7 @@ class SearchIT extends IntegrationTest {
 
   @Test
   void oddQueriesNeverBreakTheSearch() {
-    // Аудит 1.0.2: синтаксис FTS5 в запросе человека – только текст, сервер не падает.
+    // Аудит 1.0.3: синтаксис FTS5 в запросе человека – только текст, сервер не падает.
     var a = admin();
     for (String q :
         List.of(

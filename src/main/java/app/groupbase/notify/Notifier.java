@@ -123,7 +123,7 @@ public class Notifier implements DisposableBean {
    * английский №1 и №2). Без предмета — все участники; предмет в архиве — никто.
    */
   Set<Long> followers(Collection<Long> groupIds, long except, Long subjectId) {
-    // Архив прошлого семестра заполняют задним числом (1.0.2) – группе об этом не сообщаем.
+    // Архив прошлого семестра заполняют задним числом (1.0.3) – группе об этом не сообщаем.
     if (subjectId != null
         && subjects.find(subjectId).map(r -> r.archivedAt() != null).orElse(false)) {
       return new LinkedHashSet<>();

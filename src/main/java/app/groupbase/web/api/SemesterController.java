@@ -44,7 +44,7 @@ class SemesterController {
     return Map.of("status", "ok");
   }
 
-  /** Предмет прямо в архив (1.0.2) – заполнить прошлый семестр вручную. */
+  /** Предмет прямо в архив (1.0.3) – заполнить прошлый семестр вручную. */
   @PostMapping("/api/semesters/{id}/subjects")
   app.groupbase.content.SubjectService.SubjectView addSubject(
       Actor actor,

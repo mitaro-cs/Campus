@@ -56,7 +56,7 @@ export async function restoreSemester(s: Semester, done?: () => void): Promise<v
 	}
 }
 
-/** Прошлый семестр вручную (1.0.2): пустой архив, предметы и файлы добавляются потом. */
+/** Прошлый семестр вручную (1.0.3): пустой архив, предметы и файлы добавляются потом. */
 export async function createManualSemester(groupId: number, done?: () => void): Promise<void> {
 	let suggested = '';
 	try {

@@ -4,7 +4,7 @@ import { dev } from '$app/environment';
  * Состояние сети и установка PWA. offline – сервер сейчас недоступен (показываются сохранённые
  * данные); network – есть ли у устройства интернет: если есть, значит выключен компьютер хоста.
  */
-// restarting – когда сервер сказал «сейчас обновление» (1.0.2, live.ts): плашка «Campus обновляется».
+// restarting – когда сервер сказал «сейчас обновление» (1.0.3, live.ts): плашка «Campus обновляется».
 export const pwa = $state({ offline: false, canInstall: false, network: true, restarting: 0 });
 
 interface InstallEvent extends Event {

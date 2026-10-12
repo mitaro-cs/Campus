@@ -29,7 +29,7 @@ public class SemesterService {
   public record SemesterView(long id, String name, long createdAt, int subjects) {}
 
   /**
-   * @param manual пустой архив, который заполнят вручную (1.0.2): предметы не нужны
+   * @param manual пустой архив, который заполнят вручную (1.0.3): предметы не нужны
    */
   public record Input(String name, List<Long> subjects, Boolean manual) {
     public Input(String name, List<Long> subjects) {
@@ -143,7 +143,7 @@ public class SemesterService {
   }
 
   /**
-   * Предмет прямо в архив (1.0.2): прошлый семестр заполняют задним числом – файлы, конспекты и
+   * Предмет прямо в архив (1.0.3): прошлый семестр заполняют задним числом – файлы, конспекты и
    * задания загружают на странице предмета, как обычно (уведомлений группе нет – см. Notifier).
    */
   @Transactional

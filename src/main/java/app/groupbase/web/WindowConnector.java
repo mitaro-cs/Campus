@@ -7,7 +7,7 @@ import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.stereotype.Component;
 
 /**
- * Второй вход Tomcat – только для окна хоста (1.0.2): 127.0.0.1 и свой порт. Туннель и локальная
+ * Второй вход Tomcat – только для окна хоста (1.0.3): 127.0.0.1 и свой порт. Туннель и локальная
  * сеть ведут на основной порт, поэтому запрос сюда действительно пришёл с этого компьютера.
  */
 @Component

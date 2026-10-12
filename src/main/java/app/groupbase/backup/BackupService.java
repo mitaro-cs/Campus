@@ -42,7 +42,7 @@ public class BackupService {
   public record Info(String name, long size, long createdAt) {}
 
   /**
-   * Итог последнего автоматического бэкапа, его проверки (1.0.2: копия открывается, база цела) и
+   * Итог последнего автоматического бэкапа, его проверки (1.0.3: копия открывается, база цела) и
    * дубля на втором диске.
    */
   public record Status(
@@ -64,7 +64,7 @@ public class BackupService {
   static final String SETTING_ERROR_AT = "backup.last_error_at";
   public static final String CLOUD_SUBDIR = "groupbase-backups";
 
-  /** Второй диск (корень) для дубля каждой копии (1.0.2). */
+  /** Второй диск (корень) для дубля каждой копии (1.0.3). */
   static final String SETTING_MIRROR = "backup.mirror";
 
   static final String SETTING_VERIFIED = "backup.verified_at";

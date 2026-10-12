@@ -24,7 +24,7 @@ public final class Requests {
    * участника через туннель сюда не попадает.
    */
   public static boolean fromThisComputer(HttpServletRequest req) {
-    // С отдельным портом окна (1.0.2) – только он: туннельный клиент на этом же компьютере
+    // С отдельным портом окна (1.0.3) – только он: туннельный клиент на этом же компьютере
     // подключается к основному порту с 127.0.0.1, и адрес сам по себе ничего не доказывает.
     int window = windowPort;
     if (window > 0 && req.getLocalPort() != window) {

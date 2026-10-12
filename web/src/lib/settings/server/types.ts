@@ -36,13 +36,13 @@ export interface Backups {
 		lastOkAt: number | null;
 		lastError: string | null;
 		lastErrorAt: number | null;
-		/** Последняя копия проверена: архив читается, база цела (1.0.2). */
+		/** Последняя копия проверена: архив читается, база цела (1.0.3). */
 		verifiedAt?: number | null;
 		mirrorOkAt?: number | null;
 		mirrorError?: string | null;
 	};
 	items: BackupInfo[];
-	/** Второй диск для дубля (1.0.2; у старых серверов поля нет). */
+	/** Второй диск для дубля (1.0.3; у старых серверов поля нет). */
 	mirror?: {
 		chosen: Drive | null;
 		present: boolean;

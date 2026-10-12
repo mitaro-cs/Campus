@@ -66,14 +66,14 @@ public class LiveUpdates implements DisposableBean, SmartLifecycle {
   }
 
   /**
-   * @param local окно на компьютере хоста: для «тихого» времени обновления (1.0.2) оно не считается
+   * @param local окно на компьютере хоста: для «тихого» времени обновления (1.0.3) оно не считается
    *     – на сайте никого нет, даже если окно открыто
    */
   public SseEmitter subscribe(long userId, boolean local) {
     if (lastSeq < 0) {
       lastSeq = maxSeq();
     }
-    // Не больше MAX_STREAMS потоков на человека (аудит 1.0.2): иначе один аккаунт мог бы занять
+    // Не больше MAX_STREAMS потоков на человека (аудит 1.0.3): иначе один аккаунт мог бы занять
     // соединения сервера бесконечными вкладками. Лишние – самые старые – закрываются.
     List<Client> mine =
         clients.stream()
@@ -104,7 +104,7 @@ public class LiveUpdates implements DisposableBean, SmartLifecycle {
     return (int) clients.stream().filter(x -> x.userId() == userId).count();
   }
 
-  /** Сервер вот-вот остановится ради обновления или перезапуска и скоро вернётся (1.0.2). */
+  /** Сервер вот-вот остановится ради обновления или перезапуска и скоро вернётся (1.0.3). */
   private volatile boolean restarting;
 
   /**
@@ -226,7 +226,7 @@ public class LiveUpdates implements DisposableBean, SmartLifecycle {
     return out;
   }
 
-  /** На сайте кто-то, кроме окна на компьютере хоста (1.0.2: тихое время для обновления). */
+  /** На сайте кто-то, кроме окна на компьютере хоста (1.0.3: тихое время для обновления). */
   public boolean anyoneRemote() {
     long since = System.currentTimeMillis() - POLL_ONLINE_MS;
     return polledAt.values().stream().anyMatch(t -> t >= since)

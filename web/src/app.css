@@ -447,7 +447,7 @@
 		border-radius: 22px;
 	}
 	/* Липкая шапка «назад» – ровно по листу и со скруглением его углов: раньше она выступала за
-	   край листа прямыми углами (1.0.2). */
+	   край листа прямыми углами (1.0.3). */
 	:root:is([data-bg='custom'], [data-bg='site']) #content > .page .backbar {
 		margin-inline: calc(-1 * var(--s3));
 		padding-inline: var(--s3);
