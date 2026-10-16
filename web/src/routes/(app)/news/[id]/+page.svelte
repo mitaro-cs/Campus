@@ -8,7 +8,6 @@
 	import { newsActions } from '$lib/content/newsActions';
 	import { can } from '$lib/session.svelte';
 	import NewsCard from '$lib/content/NewsCard.svelte';
-	import Comments from '$lib/content/Comments.svelte';
 	import Skeleton from '$lib/ui/Skeleton.svelte';
 	import Empty from '$lib/ui/Empty.svelte';
 
@@ -51,7 +50,10 @@
 			changed: load
 		})}
 	/>
-	<Comments base="/api/news/{item.id}" canComment={item.groups.some((g) => can('comment', g.id))} />
+	{#await import('$lib/content/Comments.svelte') then c}<c.default
+			base="/api/news/{item.id}"
+			canComment={item.groups.some((g) => can('comment', g.id))}
+		/>{/await}
 	{#if composer}
 		{#await import('$lib/content/NewsComposer.svelte') then m}
 			<m.default bind:open={composer} edit={item} onsaved={(n) => (item = n)} />

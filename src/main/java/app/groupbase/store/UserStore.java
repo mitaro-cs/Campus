@@ -114,6 +114,19 @@ public class UserStore {
         .update();
   }
 
+  /** Статус (1.0.4): короткая строка под именем; null – нет. */
+  public String mood(long id) {
+    return db.sql("SELECT mood FROM users WHERE id = ?")
+        .param(id)
+        .query(String.class)
+        .optional()
+        .orElse(null);
+  }
+
+  public void setMood(long id, String mood) {
+    db.sql("UPDATE users SET mood = ? WHERE id = ?").params(mood, id).update();
+  }
+
   public void setAvatar(long id, String avatar) {
     db.sql("UPDATE users SET avatar = ? WHERE id = ?").params(avatar, id).update();
   }
@@ -192,6 +205,7 @@ public class UserStore {
           "subject_pins",
           "material_dismissed",
           "post_reactions",
+          "comment_reactions",
           "quiz_attempts"
         }) {
       db.sql("DELETE FROM " + table + " WHERE user_id = ?").param(id).update();
@@ -201,7 +215,7 @@ public class UserStore {
             UPDATE users SET username = 'deleted-' || id, display_name = '', password_hash = NULL,
               must_change_password = 0, instance_role = NULL, status = 'deleted',
               totp_secret = NULL, totp_enabled = 0, totp_last_step = NULL, totp_drift = 0,
-              avatar = NULL, appearance = '', background = NULL, tips_seen = '',
+              avatar = NULL, appearance = '', background = NULL, tips_seen = '', mood = NULL,
               onboarded_at = NULL, terms_accepted = '',
               failed_logins = 0, locked_until = NULL, deleted_at = ?
             WHERE id = ?

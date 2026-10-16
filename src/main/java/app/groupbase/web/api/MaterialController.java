@@ -20,7 +20,8 @@ class MaterialController {
 
   record NameBody(String name) {}
 
-  record CommentBody(String body) {}
+  /** files – картинки и гифки (1.0.4). */
+  record CommentBody(String body, List<Long> files) {}
 
   private final MaterialService materials;
   private final CommentService comments;
@@ -125,6 +126,6 @@ class MaterialController {
 
   @PostMapping("/api/materials/{id}/comments")
   CommentService.Comment comment(Actor actor, @PathVariable long id, @RequestBody CommentBody b) {
-    return comments.add(actor, CommentService.Parent.MATERIAL, id, b.body());
+    return comments.add(actor, CommentService.Parent.MATERIAL, id, b.body(), b.files());
   }
 }

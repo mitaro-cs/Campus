@@ -22,7 +22,8 @@ class HomeworkController {
 
   record FlagBody(Boolean value) {}
 
-  record CommentBody(String body) {}
+  /** files – картинки и гифки (1.0.4). */
+  record CommentBody(String body, List<Long> files) {}
 
   private final HomeworkService homework;
   private final CommentService comments;
@@ -91,6 +92,6 @@ class HomeworkController {
 
   @PostMapping("/api/homework/{id}/comments")
   CommentService.Comment comment(Actor actor, @PathVariable long id, @RequestBody CommentBody b) {
-    return comments.add(actor, CommentService.Parent.HOMEWORK, id, b.body());
+    return comments.add(actor, CommentService.Parent.HOMEWORK, id, b.body(), b.files());
   }
 }

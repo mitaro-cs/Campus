@@ -74,6 +74,8 @@ export interface Me {
 		background?: string | null;
 		/** Принял действующие правила сайта; false – спросить согласие. */
 		termsAccepted?: boolean;
+		/** Статус «для себя» (1.0.4). */
+		mood?: string | null;
 	};
 	restriction: 'password_change_required' | 'totp_setup_required' | null;
 	instance: {
@@ -306,6 +308,10 @@ export interface Comment {
 	canEdit?: boolean;
 	bodyMd?: string | null;
 	editedAt?: number | null;
+	/** Картинки и гифки (1.0.4). */
+	files?: FileInfo[];
+	/** Реакции (1.0.4) – как у новостей, с несогласием. */
+	reactions?: Reaction[];
 	/** Создано без сети и ещё не отправлено на сервер. */
 	pending?: boolean;
 	/** Своё, ещё в пути к серверу – показано сразу (Comments.svelte). */
@@ -323,6 +329,8 @@ export interface Member {
 	/** Роль на всём сайте: администратор или модератор. */
 	instanceRole: InstanceRole | null;
 	joinedAt: number;
+	/** Статус «для себя» под именем (1.0.4). */
+	mood?: string | null;
 }
 
 export interface Invite {
@@ -386,6 +394,8 @@ export interface FileInfo {
 	size: number;
 	/** Создано без сети и ещё не отправлено на сервер. */
 	pending?: boolean;
+	/** Свой адрес картинки вместо /api/files/<id> – аватар в просмотре (1.0.4). */
+	url?: string;
 }
 
 export interface Material {
@@ -398,6 +408,8 @@ export interface Material {
 	kind: 'file' | 'link' | 'note';
 	title: string;
 	description: string;
+	/** Описание в HTML (Markdown через санитайзер сервера, 1.0.4); у копии на устройстве – нет. */
+	descriptionHtml?: string;
 	url: string | null;
 	file: FileInfo | null;
 	author: Person;
@@ -413,6 +425,8 @@ export interface Material {
 	pinnedAt?: number | null;
 	/** Скрыт этим человеком у себя (0.9.8) – в списке свёрнутым разделом «Скрытые». */
 	dismissed?: boolean;
+	/** Тема (1.0.4): остальные файлы после основного – листаются в просмотре. */
+	more?: FileInfo[];
 	/** Создано без сети и ещё не отправлено на сервер. */
 	pending?: boolean;
 }

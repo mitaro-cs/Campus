@@ -552,10 +552,30 @@ public class ExportService {
             "[InternetShortcut]\r\nURL=" + m.get("url") + "\r\n",
             at);
       } else if (m.get("file_id") != null) {
-        StoredFile f = files.find((Long) m.get("file_id")).orElse(null);
-        if (f != null) {
-          try (InputStream in = files.open(f)) {
-            zip.file(dirPath + "/" + fileName(title, f.name()), in, at);
+        List<Long> more =
+            db.sql("SELECT file_id FROM material_files WHERE material_id = ? ORDER BY position")
+                .param(m.get("id"))
+                .query(Long.class)
+                .list();
+        if (more.isEmpty()) {
+          StoredFile f = files.find((Long) m.get("file_id")).orElse(null);
+          if (f != null) {
+            try (InputStream in = files.open(f)) {
+              zip.file(dirPath + "/" + fileName(title, f.name()), in, at);
+            }
+          }
+        } else {
+          // Тема (1.0.4) – папкой с её файлами под своими именами.
+          String topic = dirPath + "/" + ZipWriter.safe(title);
+          List<Long> all = new ArrayList<>(List.of((Long) m.get("file_id")));
+          all.addAll(more);
+          for (Long id : all) {
+            StoredFile f = files.find(id).orElse(null);
+            if (f != null) {
+              try (InputStream in = files.open(f)) {
+                zip.file(topic + "/" + ZipWriter.safe(f.name()), in, at);
+              }
+            }
           }
         }
       }

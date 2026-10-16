@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CloudOff, EyeOff } from '@lucide/svelte';
+	import { CloudOff, EyeOff, ImagePlus, X } from '@lucide/svelte';
 	import { offline } from '$lib/offline/engine';
 	import { del, get, patch, post, put as putApi } from '$lib/api';
 	import { fmtAgo } from '$lib/format';
@@ -10,8 +10,10 @@
 	import { report } from '$lib/content/moderate';
 	import { fly, slide } from '$lib/motion';
 	import { toastError } from '$lib/toasts.svelte';
-	import type { Comment, Member } from '$lib/types';
+	import type { Comment, FileInfo, Member } from '$lib/types';
+	import { openFiles } from '$lib/files/viewer.svelte';
 	import Author from './Author.svelte';
+	import AvatarZoom from '$lib/ui/AvatarZoom.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Prose from '$lib/ui/Prose.svelte';
 
@@ -44,6 +46,53 @@
 	let text = $state('');
 	let busy = $state(false);
 
+	// Картинки и гифки (1.0.4): грузятся сразу после выбора (lib/content/commentPics.ts – лениво),
+	// превью – с устройства.
+	const MAX_PICS = 6;
+	type Pic = { key: number; preview: string; name: string; info?: FileInfo; failed?: boolean };
+	let pics = $state<Pic[]>([]);
+	let picInput: HTMLInputElement | undefined = $state();
+	let picSeq = 0;
+	const picsBusy = $derived(pics.some((p) => !p.info && !p.failed));
+
+	function addPics(files: Iterable<File>) {
+		for (const f of files) {
+			if (!f.type.startsWith('image/')) continue;
+			if (pics.length >= MAX_PICS) {
+				toastError(new Error(`Не больше ${MAX_PICS} картинок`));
+				break;
+			}
+			const pic: Pic = { key: ++picSeq, preview: URL.createObjectURL(f), name: f.name };
+			pics.push(pic);
+			import('./commentPics')
+				.then((m) => m.sendPic(f))
+				.then((info) => {
+					const p = pics.find((x) => x.key === pic.key);
+					if (p) p.info = info;
+				})
+				.catch((err) => {
+					const p = pics.find((x) => x.key === pic.key);
+					if (p) p.failed = true;
+					toastError(err);
+				});
+		}
+	}
+
+	function dropPic(key: number) {
+		const p = pics.find((x) => x.key === key);
+		if (p) URL.revokeObjectURL(p.preview);
+		pics = pics.filter((x) => x.key !== key);
+	}
+
+	/** Вставили картинку (скриншот, гифку из буфера) прямо в поле – она к комментарию. */
+	function onPaste(e: ClipboardEvent) {
+		const files = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'));
+		if (!files.length) return;
+		e.preventDefault();
+		e.stopPropagation();
+		addPics(files);
+	}
+
 	$effect(() => {
 		void offline.version;
 		get<Comment[]>(`${base}/comments`)
@@ -75,28 +124,38 @@
 		e.preventDefault();
 		const body = text.trim();
 		const me = session.me?.user;
-		if (!body || !me) return;
+		const ready = pics.filter((p) => p.info);
+		if ((!body && !ready.length) || !me || picsBusy) return;
+		const sent = pics;
 		const temp: Comment = {
 			id: -1e12 - ++draftId,
 			author: { id: me.id, displayName: me.displayName, avatar: me.avatar, deleted: false },
-			bodyHtml: `<p>${plain(body)}</p>`,
+			bodyHtml: body ? `<p>${plain(body)}</p>` : '',
 			createdAt: Date.now(),
 			hidden: false,
 			canDelete: false,
+			files: ready.map((p) => ({ ...p.info!, url: p.preview })),
 			sending: true
 		};
 		items.push(temp);
 		text = '';
+		pics = [];
 		busy = true;
 		sending++;
 		try {
-			const c = await post<Comment>(`${base}/comments`, { body });
+			const c = await post<Comment>(`${base}/comments`, {
+				body,
+				files: ready.map((p) => p.info!.id)
+			});
+			// Превью с устройства больше не нужны – картинки уже с сервера.
+			setTimeout(() => sent.forEach((p) => URL.revokeObjectURL(p.preview)), 5000);
 			swapped.push(c.id);
 			const rest = items.filter((x) => x.id !== temp.id && x.id !== c.id);
 			items = [...rest, c].sort((a, b) => a.createdAt - b.createdAt);
 		} catch (err) {
 			items = items.filter((x) => x.id !== temp.id);
 			if (!text) text = body;
+			if (!pics.length) pics = sent;
 			toastError(err);
 		} finally {
 			sending--;
@@ -171,7 +230,22 @@
 			out:slide={{ duration: removed.includes(c.id) ? 200 : 0 }}
 		>
 			<div class="head">
-				<Author person={c.author} size={24} label={names.get(c.author.id)} />
+				{#if c.author.deleted || !c.author.avatar}
+					<Author person={c.author} size={24} label={names.get(c.author.id)} />
+				{:else}
+					<!-- Фото автора открывается крупно (1.0.4); не через Author – тот в общем коде ленты. -->
+					<span class="who">
+						<AvatarZoom
+							id={c.author.id}
+							name={c.author.displayName}
+							avatar={c.author.avatar}
+							size={24}
+						/>
+						<span class="who-name" title={c.author.displayName}
+							>{names.get(c.author.id) ?? c.author.displayName}</span
+						>
+					</span>
+				{/if}
 				<span class="faint small num"
 					>{fmtAgo(c.createdAt)}{#if c.editedAt}<span title="Изменено {fmtAgo(c.editedAt)}">
 							· изменено</span
@@ -228,8 +302,35 @@
 						>
 					</div>
 				</div>
-			{:else}
+			{:else if c.bodyHtml}
 				<Prose html={c.bodyHtml} class="text {c.hidden ? 'dim' : ''}" />
+			{/if}
+			{#if c.files?.length}
+				<div class="pics" class:dim={c.hidden}>
+					{#each c.files as f, i (f.id)}
+						<button
+							type="button"
+							class="pic"
+							aria-label="Открыть {f.name}"
+							onclick={() => openFiles(c.files!, i, 'Комментарий')}
+							><img
+								src={f.url ?? `/api/files/${f.id}`}
+								alt={f.name}
+								loading="lazy"
+								decoding="async"
+							/></button
+						>
+					{/each}
+				</div>
+			{/if}
+			{#if c.id > 0 && !c.sending}
+				<div class="react">
+					{#await import('./Reactions.svelte') then m}<m.default
+							small
+							endpoint="/api/comments/{c.id}/reactions"
+							reactions={c.reactions}
+						/>{/await}
+				</div>
 			{/if}
 		</div>
 	{/each}
@@ -242,14 +343,47 @@
 				rows="2"
 				bind:value={text}
 				placeholder="Написать комментарий…"
-				maxlength="4000"></textarea>
+				maxlength="4000"
+				onpaste={onPaste}></textarea>
+			{#if pics.length}
+				<div class="pics drafts">
+					{#each pics as p (p.key)}
+						<span class="pic draft" class:loading={!p.info && !p.failed} class:failed={p.failed}>
+							<img src={p.preview} alt={p.name} />
+							<button
+								type="button"
+								class="unpick"
+								aria-label="Убрать {p.name}"
+								onclick={() => dropPic(p.key)}><X size={14} /></button
+							>
+						</span>
+					{/each}
+				</div>
+			{/if}
 			<div class="row">
+				<input
+					bind:this={picInput}
+					type="file"
+					accept="image/*"
+					multiple
+					hidden
+					onchange={(e) => {
+						addPics(e.currentTarget.files ?? []);
+						e.currentTarget.value = '';
+					}}
+				/>
+				<button
+					type="button"
+					class="link small add-pic"
+					disabled={pics.length >= MAX_PICS}
+					onclick={() => picInput?.click()}><ImagePlus size={16} /> Картинка или гифка</button
+				>
 				<span class="spacer"></span><Button
 					type="submit"
 					variant="primary"
 					size="s"
-					loading={busy}
-					disabled={!text.trim()}>Отправить</Button
+					loading={busy || picsBusy}
+					disabled={!text.trim() && !pics.some((p) => p.info)}>Отправить</Button
 				>
 			</div>
 		</form>
@@ -320,5 +454,81 @@
 	}
 	.new .textarea {
 		min-height: 72px;
+	}
+	.who {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+	.who-name {
+		font-weight: 560;
+		font-size: 14px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	/* Картинки и гифки (1.0.4): плиткой под текстом, открываются в просмотре. */
+	.pics {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		padding-left: 32px;
+	}
+	.pics.dim {
+		opacity: 0.55;
+	}
+	.pic {
+		position: relative;
+		display: block;
+		width: min(160px, 40vw);
+		aspect-ratio: 4 / 3;
+		padding: 0;
+		border: 0;
+		border-radius: var(--r-s);
+		overflow: hidden;
+		background: var(--surface-2);
+		cursor: zoom-in;
+	}
+	.pic img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.drafts {
+		padding-left: 0;
+	}
+	.draft {
+		width: 72px;
+		cursor: default;
+	}
+	.draft.loading img {
+		opacity: 0.5;
+	}
+	.draft.failed {
+		outline: 2px solid var(--danger);
+	}
+	.unpick {
+		position: absolute;
+		top: 3px;
+		right: 3px;
+		display: grid;
+		place-items: center;
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		background: rgb(0 0 0 / 0.6);
+		color: #fff;
+	}
+	.react {
+		padding-left: 32px;
+	}
+	.add-pic {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
 	}
 </style>

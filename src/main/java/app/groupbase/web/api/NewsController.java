@@ -20,7 +20,8 @@ class NewsController {
 
   record FlagBody(Boolean value) {}
 
-  record CommentBody(String body) {}
+  /** files – картинки и гифки (1.0.4). */
+  record CommentBody(String body, List<Long> files) {}
 
   private final NewsService news;
   private final CommentService comments;
@@ -83,7 +84,7 @@ class NewsController {
 
   @PostMapping("/api/news/{id}/comments")
   CommentService.Comment comment(Actor actor, @PathVariable long id, @RequestBody CommentBody b) {
-    return comments.add(actor, CommentService.Parent.POST, id, b.body());
+    return comments.add(actor, CommentService.Parent.POST, id, b.body(), b.files());
   }
 
   @DeleteMapping("/api/comments/{id}")
@@ -96,6 +97,13 @@ class NewsController {
   CommentService.Comment editComment(
       Actor actor, @PathVariable long id, @RequestBody CommentBody b) {
     return comments.edit(actor, id, b.body());
+  }
+
+  /** Реакция на комментарий (1.0.4). */
+  @PutMapping("/api/comments/{id}/reactions")
+  List<NewsService.Reaction> reactComment(
+      Actor actor, @PathVariable long id, @RequestBody ReactionBody b) {
+    return comments.react(actor, id, b.emoji(), Boolean.TRUE.equals(b.value()));
   }
 
   @PutMapping("/api/comments/{id}/hidden")

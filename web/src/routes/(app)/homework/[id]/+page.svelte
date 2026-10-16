@@ -22,7 +22,6 @@
 	import type { Homework } from '$lib/types';
 	import { toggleDone } from '$lib/content/homework';
 	import Author from '$lib/content/Author.svelte';
-	import Comments from '$lib/content/Comments.svelte';
 	import SubjectTag from '$lib/ui/SubjectTag.svelte';
 	import BackBar from '$lib/ui/BackBar.svelte';
 	import SubjectArt from '$lib/ui/SubjectArt.svelte';
@@ -265,10 +264,11 @@
 			</section>
 		{/if}
 	</article>
-	<Comments
-		base="/api/homework/{item.id}"
-		canComment={item.groups.some((g) => can('comment', g.id))}
-	/>
+	<!-- Комментарии – ниже задания, отдельным кусочком (бюджет страницы, 1.0.4). -->
+	{#await import('$lib/content/Comments.svelte') then c}<c.default
+			base="/api/homework/{item.id}"
+			canComment={item.groups.some((g) => can('comment', g.id))}
+		/>{/await}
 	<!-- Липкая, а не поверх страницы: в длинном задании плавает над нижней панелью, в конце
 	     встаёт после комментариев и не закрывает поле ввода (0.9.8). -->
 	<div class="cta-dock">

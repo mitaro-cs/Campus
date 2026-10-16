@@ -2,18 +2,29 @@
 	import { CloudOff, ExternalLink, Eye, Pin } from '@lucide/svelte';
 	import { openFiles } from '$lib/files/viewer.svelte';
 	import { canPreview } from '$lib/fileKinds';
-	import { fmtAgo, fmtSize } from '$lib/format';
+	import { fmtAgo, fmtSize, plural } from '$lib/format';
 	import { t } from '$lib/i18n/ru';
 	import type { Material } from '$lib/types';
 	import FileIcon from './FileIcon.svelte';
 	import SubjectGlyph from '$lib/ui/SubjectGlyph.svelte';
 	import Menu, { type MenuItem } from '$lib/ui/Menu.svelte';
 
+	// Начало сообщения в списке – без знаков Markdown (#, **, - …): «## План» → «План»; номера
+	// пунктов («1.») остаются.
+	const plain = (md: string) =>
+		md
+			.replace(/^\s*(#{1,6}|[-*+>])\s+/gm, '')
+			.replace(/[*_`~]+/g, '')
+			.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+
 	let {
 		m,
 		actions = [],
 		showSubject = false
 	}: { m: Material; actions?: MenuItem[]; showSubject?: boolean } = $props();
+	// Тема (1.0.4): все файлы по порядку – «Открыть» листает их.
+	const all = $derived(m.file ? [m.file, ...(m.more ?? [])] : []);
+	const size = $derived(all.reduce((s, f) => s + f.size, 0));
 </script>
 
 <!-- Вся строка – ссылка на материал; «Открыть», ссылка наружу и меню – поверх неё. -->
@@ -26,7 +37,7 @@
 		>
 		{#if m.kind === 'note' && m.description !== m.title}
 			<!-- Сообщение: начало текста прямо в списке. -->
-			<span class="text small">{m.description.replace(m.title, '').trim()}</span>
+			<span class="text small">{plain(m.description).replace(m.title, '').trim()}</span>
 		{/if}
 		<span class="faint small meta num">
 			{#if showSubject}<SubjectGlyph
@@ -36,7 +47,11 @@
 					size={13}
 					bare
 				/>{m.subjectName} ·{/if}
-			{#if m.file}{fmtSize(m.file.size)} ·{:else if m.url}{new URL(m.url).host} ·{/if}
+			{#if all.length > 1}<span class="topic"
+					>{all.length} {plural(all.length, ['файл', 'файла', 'файлов'])}</span
+				>
+				· {fmtSize(size)} ·{:else if m.file}{fmtSize(m.file.size)} ·{:else if m.url}{new URL(m.url)
+					.host} ·{/if}
 			{m.author.deleted ? t.common.deletedUser : m.author.displayName} · {fmtAgo(m.createdAt)}
 		</span>
 	</div>
@@ -48,10 +63,9 @@
 			><CloudOff size={12} /> ждёт отправки</span
 		>{/if}
 	{#if m.file && m.file.id > 0 && canPreview(m.file.mime, m.file.name, m.file.size)}
-		{@const f = m.file}
 		<button
 			class="ext"
-			onclick={() => openFiles([f], 0, m.title)}
+			onclick={() => openFiles(all, 0, m.title)}
 			aria-label="Открыть {m.title}"
 			title="Открыть"><Eye size={17} /></button
 		>
@@ -147,5 +161,9 @@
 	.ext:hover {
 		background: var(--surface-2);
 		color: var(--text);
+	}
+	.topic {
+		color: var(--text-2);
+		font-weight: 600;
 	}
 </style>

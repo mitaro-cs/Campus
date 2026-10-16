@@ -40,6 +40,8 @@
 	}
 
 	let pending = $state<Pending[]>([]);
+	/** Файл → номер выбора: загруженные встают в список в том порядке, в каком их выбрали. */
+	const order = new Map<number, number>();
 	// Счётчик для формы: загрузки без ошибки, которые ещё идут.
 	const busy = $derived(pending.filter((p) => !p.error).length);
 	$effect(() => {
@@ -98,8 +100,12 @@
 					await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
 				}
 			}
-			// Убрали крестиком во время загрузки – в форму не попадает.
-			if (pending.some((x) => x.key === item.key)) files = [...files, info];
+			// Убрали крестиком во время загрузки – в форму не попадает. Порядок – как выбрали, а не
+			// как догрузились (по три сразу): у темы (1.0.4) он виден и задаёт название.
+			if (pending.some((x) => x.key === item.key)) {
+				order.set(info.id, item.key);
+				files = [...files, info].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+			}
 			pending = pending.filter((x) => x.key !== item.key);
 		} catch (e) {
 			item.error = e instanceof Error ? e.message : 'Ошибка загрузки';

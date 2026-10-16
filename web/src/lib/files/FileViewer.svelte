@@ -17,8 +17,8 @@
 
 	const file = $derived(viewer.files[viewer.index]);
 	const kind = $derived(file ? fileKind(file.mime, file.name) : 'other');
-	const src = $derived(file ? `/api/files/${file.id}` : '');
-	const pending = $derived(!!file && file.id <= 0);
+	const src = $derived(file ? (file.url ?? `/api/files/${file.id}`) : '');
+	const pending = $derived(!!file && !file.url && file.id <= 0);
 	const many = $derived(viewer.files.length > 1);
 
 	$effect(() => {
@@ -171,7 +171,7 @@
 			<div class="name">
 				<strong>{file.name}</strong>
 				<span class="small num"
-					>{fmtSize(file.size)}{many
+					>{file.url ? 'Фото профиля' : fmtSize(file.size)}{many
 						? ` · ${viewer.index + 1} из ${viewer.files.length}`
 						: ''}{viewer.title ? ` · ${viewer.title}` : ''}</span
 				>
@@ -189,7 +189,7 @@
 					>
 				</div>
 			{/if}
-			{#if !pending}
+			{#if !pending && !file.url}
 				<a class="icon-btn" href="{src}?download=true" download={file.name} aria-label="Скачать"
 					><Download size={19} /></a
 				>

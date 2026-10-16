@@ -7,6 +7,18 @@ import { ask } from '$lib/ui/ask.svelte';
 import { report } from '$lib/content/moderate';
 import { session } from '$lib/session.svelte';
 
+/** Окно правки – отдельным кусочком, создаётся на время правки и убирает себя само. */
+async function editMaterial(m: Material, changed: () => void) {
+	const [{ mount, unmount }, { default: MaterialEdit }] = await Promise.all([
+		import('svelte'),
+		import('./MaterialEdit.svelte')
+	]);
+	const app = mount(MaterialEdit, {
+		target: document.body,
+		props: { material: m, onsaved: changed, ondone: () => unmount(app) }
+	});
+}
+
 export function materialActions(m: Material, changed: () => void): MenuItem[] {
 	const out: MenuItem[] = [];
 	const act = (path: string, message: string) => async () => {
@@ -31,6 +43,9 @@ export function materialActions(m: Material, changed: () => void): MenuItem[] {
 			});
 		}
 	}
+	// Изменить (1.0.4) – автор и кто следит за порядком; материал на устройстве ещё не отправлен.
+	if (m.can.edit && m.id > 0)
+		out.push({ label: 'Изменить', onclick: () => editMaterial(m, changed) });
 	// Закрепить сверху – староста, замы и модераторы (как закреплённые новости).
 	if (m.can.pin && m.status === 'published') {
 		out.push({

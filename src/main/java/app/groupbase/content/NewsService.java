@@ -69,14 +69,12 @@ public class NewsService {
   /**
    * Реакция на новость (1.0.2): сколько, своя ли и кто поставил (подсказка при наведении).
    *
-   * @param who имена – до {@link #WHO_MAX}, по времени
+   * @param who имена – до {@link Reactions#WHO_MAX}, по времени
    */
   public record Reaction(String emoji, int count, boolean mine, List<String> who) {}
 
-  /** Какие реакции бывают – и в каком порядке их показывать. */
-  public static final List<String> REACTIONS = List.of("👍", "❤️", "🔥", "😂", "😮", "❓");
-
-  static final int WHO_MAX = 30;
+  /** Какие реакции бывают – и в каком порядке их показывать (общие с комментариями). */
+  public static final List<String> REACTIONS = Reactions.ALL;
 
   public record Page(List<Item> pinned, List<Item> items, Long next) {}
 
@@ -463,67 +461,12 @@ public class NewsService {
   @Transactional
   public List<Reaction> react(Actor actor, long id, String emoji, boolean on) {
     get(actor, id);
-    if (emoji == null || !REACTIONS.contains(emoji)) {
-      throw ApiException.invalid("emoji", "Реакция: " + String.join(" ", REACTIONS));
-    }
-    if (on) {
-      db.sql(
-              "INSERT OR IGNORE INTO post_reactions (post_id, user_id, emoji, at)"
-                  + " VALUES (?, ?, ?, ?)")
-          .params(id, actor.id(), emoji, clock.millis())
-          .update();
-    } else {
-      db.sql("DELETE FROM post_reactions WHERE post_id = ? AND user_id = ? AND emoji = ?")
-          .params(id, actor.id(), emoji)
-          .update();
-    }
+    Reactions.set(db, Reactions.Table.POST, id, actor.id(), emoji, on, clock.millis());
     return reactions(List.of(id), actor.id()).getOrDefault(id, List.of());
   }
 
-  private record ReactionRow(long postId, String emoji, long userId, String name) {}
-
   private Map<Long, List<Reaction>> reactions(List<Long> postIds, long me) {
-    Map<Long, List<Reaction>> out = new HashMap<>();
-    if (postIds.isEmpty()) {
-      return out;
-    }
-    List<ReactionRow> rows =
-        db.sql(
-                """
-                SELECT r.post_id, r.emoji, r.user_id, u.display_name FROM post_reactions r
-                JOIN users u ON u.id = r.user_id
-                WHERE r.post_id IN (:ids) AND u.deleted_at IS NULL ORDER BY r.at, r.user_id
-                """)
-            .param("ids", postIds)
-            .query(
-                (rs, i) ->
-                    new ReactionRow(rs.getLong(1), rs.getString(2), rs.getLong(3), rs.getString(4)))
-            .list();
-    Map<Long, Map<String, List<ReactionRow>>> grouped = new HashMap<>();
-    for (ReactionRow r : rows) {
-      grouped
-          .computeIfAbsent(r.postId(), k -> new HashMap<>())
-          .computeIfAbsent(r.emoji(), k -> new ArrayList<>())
-          .add(r);
-    }
-    grouped.forEach(
-        (post, byEmoji) -> {
-          List<Reaction> list = new ArrayList<>();
-          for (String e : REACTIONS) {
-            List<ReactionRow> rs = byEmoji.get(e);
-            if (rs == null) {
-              continue;
-            }
-            list.add(
-                new Reaction(
-                    e,
-                    rs.size(),
-                    rs.stream().anyMatch(x -> x.userId() == me),
-                    rs.stream().limit(WHO_MAX).map(ReactionRow::name).toList()));
-          }
-          out.put(post, list);
-        });
-    return out;
+    return Reactions.load(db, Reactions.Table.POST, postIds, me);
   }
 
   static String title(String raw) {

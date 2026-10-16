@@ -133,7 +133,8 @@ public class FileText {
                 WHERE NOT EXISTS (SELECT 1 FROM file_text t WHERE t.file_id = f.id)
                   AND (EXISTS (SELECT 1 FROM materials m WHERE m.file_id = f.id)
                     OR EXISTS (SELECT 1 FROM homework_attachments a WHERE a.file_id = f.id)
-                    OR EXISTS (SELECT 1 FROM post_attachments p WHERE p.file_id = f.id))
+                    OR EXISTS (SELECT 1 FROM post_attachments p WHERE p.file_id = f.id)
+                    OR EXISTS (SELECT 1 FROM material_files t WHERE t.file_id = f.id))
                 ORDER BY f.id DESC LIMIT :n
                 """)
             .param("n", limit + absent.size())

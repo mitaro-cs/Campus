@@ -8,6 +8,8 @@ import app.groupbase.store.Person;
 import app.groupbase.store.Rows;
 import app.groupbase.web.ApiException;
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -36,6 +38,8 @@ public class CommentService {
    * @param canEdit изменить (1.0.4): свой – автор, любой – модератор (администратор, староста)
    * @param bodyMd исходный текст – только тому, кто может изменить
    * @param editedAt когда изменили, null – не меняли
+   * @param files картинки и гифки (1.0.4)
+   * @param reactions реакции (1.0.4) – как у новостей
    */
   public record Comment(
       long id,
@@ -47,7 +51,12 @@ public class CommentService {
       boolean canHide,
       boolean canEdit,
       String bodyMd,
-      Long editedAt) {}
+      Long editedAt,
+      List<MaterialService.FileInfo> files,
+      List<NewsService.Reaction> reactions) {}
+
+  /** Картинок в одном комментарии – не больше. */
+  static final int MAX_FILES = 6;
 
   private record Row(
       long id,
@@ -135,6 +144,10 @@ public class CommentService {
           }
         });
     Map<Long, Person> authors = people.load(authorIds);
+    List<Long> ids = rows.stream().map(Row::id).toList();
+    Map<Long, List<MaterialService.FileInfo>> files = files(ids);
+    Map<Long, List<NewsService.Reaction>> reactions =
+        Reactions.load(db, Reactions.Table.COMMENT, ids, actor.id());
     return rows.stream()
         .map(
             r -> {
@@ -149,19 +162,32 @@ public class CommentService {
                   mod,
                   mod || mine,
                   mod || mine ? r.bodyMd() : null,
-                  r.editedAt());
+                  r.editedAt(),
+                  files.getOrDefault(r.id(), List.of()),
+                  reactions.getOrDefault(r.id(), List.of()));
             })
         .toList();
   }
 
   public Comment add(Actor actor, Parent parent, long id, String body) {
+    return add(actor, parent, id, body, List.of());
+  }
+
+  /**
+   * Новый комментарий; {@code fileIds} – картинки и гифки (1.0.4), загруженные этим человеком и ещё
+   * нигде не прикреплённые. С картинкой текст не обязателен.
+   */
+  @Transactional
+  public Comment add(Actor actor, Parent parent, long id, String body, List<Long> fileIds) {
     List<Long> groups = visibleParent(actor, parent, id);
     if (!access.can(actor, Permission.COMMENT, groups)) {
       throw ApiException.forbidden();
     }
-    String md = clean(body);
+    List<Long> wanted = fileIds == null ? List.of() : fileIds.stream().distinct().toList();
+    String md = wanted.isEmpty() ? clean(body) : cleanOptional(body);
+    checkFiles(actor, wanted);
     long now = clock.millis();
-    String html = Markdown.render(md);
+    String html = md.isEmpty() ? "" : Markdown.render(md);
     long cid =
         db.sql(
                 "INSERT INTO comments (target_type, target_id, author_id, body_md, body_html,"
@@ -169,6 +195,11 @@ public class CommentService {
             .params(parent.id(), id, actor.id(), md, html, now)
             .query(Long.class)
             .single();
+    for (int i = 0; i < wanted.size(); i++) {
+      db.sql("INSERT INTO comment_attachments (comment_id, file_id, position) VALUES (?, ?, ?)")
+          .params(cid, wanted.get(i), i)
+          .update();
+    }
     Person me = people.load(List.of(actor.id())).get(actor.id());
     return new Comment(
         cid,
@@ -180,7 +211,9 @@ public class CommentService {
         access.can(actor, Permission.MODERATE_CONTENT, groups),
         true,
         md,
-        null);
+        null,
+        files(List.of(cid)).getOrDefault(cid, List.of()),
+        List.of());
   }
 
   private static String clean(String body) {
@@ -189,6 +222,71 @@ public class CommentService {
       throw ApiException.invalid("body", "Комментарий: от 1 до 4000 символов");
     }
     return md;
+  }
+
+  private static String cleanOptional(String body) {
+    String md = body == null ? "" : body.strip();
+    if (md.length() > 4000) {
+      throw ApiException.invalid("body", "Комментарий: до 4000 символов");
+    }
+    return md;
+  }
+
+  /** Картинки свои, ещё не прикреплены, и это действительно картинки (по содержимому – files). */
+  private void checkFiles(Actor actor, List<Long> ids) {
+    if (ids.size() > MAX_FILES) {
+      throw ApiException.invalid("files", "Не больше " + MAX_FILES + " картинок в комментарии");
+    }
+    for (Long f : ids) {
+      record F(Long uploader, String mime) {}
+      F file =
+          db.sql("SELECT uploaded_by, mime FROM files WHERE id = ?")
+              .param(f)
+              .query((rs, i) -> new F(Rows.longOrNull(rs, "uploaded_by"), rs.getString(2)))
+              .optional()
+              .orElseThrow(ApiException::notFound);
+      if (file.uploader() == null || file.uploader() != actor.id() || MaterialService.used(db, f)) {
+        throw ApiException.forbidden("Этот файл нельзя прикрепить");
+      }
+      if (file.mime() == null || !file.mime().startsWith("image/")) {
+        throw ApiException.invalid("files", "В комментарий – только картинки и гифки");
+      }
+    }
+  }
+
+  private Map<Long, List<MaterialService.FileInfo>> files(List<Long> commentIds) {
+    Map<Long, List<MaterialService.FileInfo>> out = new HashMap<>();
+    if (commentIds.isEmpty()) {
+      return out;
+    }
+    db.sql(
+            """
+            SELECT a.comment_id, f.id, f.name, f.mime, f.size FROM comment_attachments a
+            JOIN files f ON f.id = a.file_id
+            WHERE a.comment_id IN (:ids) ORDER BY a.position
+            """)
+        .param("ids", commentIds)
+        .query(
+            (rs, i) -> {
+              out.computeIfAbsent(rs.getLong(1), k -> new ArrayList<>())
+                  .add(
+                      new MaterialService.FileInfo(
+                          rs.getLong(2), rs.getString(3), rs.getString(4), rs.getLong(5)));
+              return 0;
+            })
+        .list();
+    return out;
+  }
+
+  /** Реакция на комментарий (1.0.4) – кто видит комментарий; в ответе – его реакции. */
+  @Transactional
+  public List<NewsService.Reaction> react(Actor actor, long commentId, String emoji, boolean on) {
+    C c = find(commentId);
+    Parent parent = Parent.valueOf(c.type().toUpperCase(Locale.ROOT));
+    visibleParent(actor, parent, c.targetId());
+    Reactions.set(db, Reactions.Table.COMMENT, commentId, actor.id(), emoji, on, clock.millis());
+    return Reactions.load(db, Reactions.Table.COMMENT, List.of(commentId), actor.id())
+        .getOrDefault(commentId, List.of());
   }
 
   /**
@@ -205,14 +303,20 @@ public class CommentService {
     if (!own && !mod) {
       throw ApiException.forbidden();
     }
-    String md = clean(body);
+    boolean hasFiles =
+        db.sql("SELECT count(*) FROM comment_attachments WHERE comment_id = ?")
+                .param(commentId)
+                .query(Integer.class)
+                .single()
+            > 0;
+    String md = hasFiles ? cleanOptional(body) : clean(body);
     String before =
         db.sql("SELECT body_md FROM comments WHERE id = ?")
             .param(commentId)
             .query(String.class)
             .single();
     long now = clock.millis();
-    String html = Markdown.render(md);
+    String html = md.isEmpty() ? "" : Markdown.render(md);
     if (!md.equals(before)) {
       db.sql("UPDATE comments SET body_md = ?, body_html = ?, edited_at = ? WHERE id = ?")
           .params(md, html, now, commentId)
@@ -249,7 +353,10 @@ public class CommentService {
         mod,
         true,
         md,
-        saved.editedAt());
+        saved.editedAt(),
+        files(List.of(commentId)).getOrDefault(commentId, List.of()),
+        Reactions.load(db, Reactions.Table.COMMENT, List.of(commentId), actor.id())
+            .getOrDefault(commentId, List.of()));
   }
 
   private record C(String type, long targetId, Long authorId) {}

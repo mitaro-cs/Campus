@@ -14,7 +14,7 @@
 	import { fmtAgo, plural } from '$lib/format';
 	import { offline } from '$lib/offline/engine';
 	import { session } from '$lib/session.svelte';
-	import Avatar from '$lib/ui/Avatar.svelte';
+	import AvatarZoom from '$lib/ui/AvatarZoom.svelte';
 	import Empty from '$lib/ui/Empty.svelte';
 	import Tabs from '$lib/ui/Tabs.svelte';
 
@@ -98,7 +98,7 @@
 					<span class="ava">
 						{#if r.place === 1}<span class="crown" aria-hidden="true"><Crown size={20} /></span
 							>{/if}
-						<Avatar
+						<AvatarZoom
 							id={r.userId}
 							name={r.displayName}
 							avatar={r.avatar}
@@ -136,7 +136,7 @@
 			{#each rows as r (r.userId)}
 				<li class:me={r.userId === me} class:leader={r.place <= 3}>
 					<span class="place num">{r.place}</span>
-					<Avatar id={r.userId} name={r.displayName} avatar={r.avatar} size={40} />
+					<AvatarZoom id={r.userId} name={r.displayName} avatar={r.avatar} size={40} />
 					<div class="who">
 						<div class="line">
 							<strong>{r.displayName}</strong>{#if r.userId === me}<span class="you">вы</span>{/if}

@@ -62,6 +62,9 @@ public class SubjectDeletion {
                 """
                 SELECT file_id FROM materials WHERE subject_id = :s AND file_id IS NOT NULL
                 UNION
+                SELECT a.file_id FROM material_files a
+                  JOIN materials m ON m.id = a.material_id WHERE m.subject_id = :s
+                UNION
                 SELECT a.file_id FROM homework_attachments a
                   JOIN homework h ON h.id = a.homework_id WHERE h.subject_id = :s
                 """)

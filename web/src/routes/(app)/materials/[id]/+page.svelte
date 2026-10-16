@@ -6,12 +6,11 @@
 	import { copy } from '$lib/copy';
 	import { get } from '$lib/api';
 	import { track } from '$lib/recent';
-	import { fmtAgo, fmtSize } from '$lib/format';
+	import { fmtAgo, fmtSize, plural } from '$lib/format';
 	import { can, currentGroup, isMulti } from '$lib/session.svelte';
 	import type { Material, MaterialListing } from '$lib/types';
 	import { materialActions } from '$lib/content/materialActions';
 	import Author from '$lib/content/Author.svelte';
-	import Comments from '$lib/content/Comments.svelte';
 	import FileIcon from '$lib/content/FileIcon.svelte';
 	import BackBar from '$lib/ui/BackBar.svelte';
 	import Button from '$lib/ui/Button.svelte';
@@ -19,6 +18,7 @@
 	import Skeleton from '$lib/ui/Skeleton.svelte';
 	import Empty from '$lib/ui/Empty.svelte';
 	import Crumbs from '$lib/ui/Crumbs.svelte';
+	import Prose from '$lib/ui/Prose.svelte';
 	import { openFiles } from '$lib/files/viewer.svelte';
 	import { canPreview, fileKind } from '$lib/fileKinds';
 
@@ -66,8 +66,10 @@
 				]
 			: []
 	);
-	function view() {
-		if (m?.file) openFiles([m.file], 0, m.title);
+	// Тема (1.0.4): все файлы по порядку, листаются в просмотре.
+	const all = $derived(m?.file ? [m.file, ...(m.more ?? [])] : []);
+	function view(i = 0) {
+		if (all.length) openFiles(all, i, m?.title ?? '');
 	}
 </script>
 
@@ -92,13 +94,17 @@
 		<div class="info">
 			<h1>{m.title}</h1>
 			<p class="faint small num">
-				{#if m.file}{fmtSize(m.file.size)} ·
+				{#if all.length > 1}{all.length}
+					{plural(all.length, ['файл', 'файла', 'файлов'])} ·
+				{:else if m.file}{fmtSize(m.file.size)} ·
 				{/if}<Author person={m.author} size={18} /> · {fmtAgo(m.createdAt)}
 			</p>
 		</div>
 		{#if m.file}
-			{#if canPreview(m.file.mime, m.file.name, m.file.size)}
-				<Button variant="primary" onclick={view}><Eye size={16} /> Открыть</Button>
+			{#if all.length > 1}
+				<Button variant="primary" onclick={() => view()}><Eye size={16} /> Листать</Button>
+			{:else if canPreview(m.file.mime, m.file.name, m.file.size)}
+				<Button variant="primary" onclick={() => view()}><Eye size={16} /> Открыть</Button>
 				<Button href="{src}?download=true"><Download size={16} /> Скачать</Button>
 			{:else}
 				<Button variant="primary" href="{src}?download=true"><Download size={16} /> Скачать</Button>
@@ -119,16 +125,35 @@
 	</article>
 
 	{#if m.status === 'pending'}<p class="chip amber pending">Ждёт проверки старостой</p>{/if}
-	{#if m.description}<p class="desc">{m.description}</p>{/if}
+	{#if m.descriptionHtml}
+		<Prose class="card note-text" html={m.descriptionHtml} />
+	{:else if m.description}<p class="desc">{m.description}</p>{/if}
 
-	{#if m.file}
+	{#if all.length > 1}
+		<!-- Тема: плитки файлов, нажали – просмотр с этого файла, дальше листать. -->
+		<ul class="topic" aria-label="Файлы темы">
+			{#each all as f, i (f.id)}
+				<li>
+					<button class="tile card" onclick={() => view(i)} aria-label="Открыть {f.name}">
+						{#if fileKind(f.mime, f.name) === 'image'}
+							<img src="/api/files/{f.id}" alt="" loading="lazy" decoding="async" />
+						{:else}
+							<span class="ico"><FileIcon mime={f.mime} size={30} /></span>
+						{/if}
+						<span class="fname">{f.name}</span>
+						<span class="faint small num">{fmtSize(f.size)}</span>
+					</button>
+				</li>
+			{/each}
+		</ul>
+	{:else if m.file}
 		<div class="preview">
 			{#if kind === 'pdf'}
 				<div class="pdf-inline">
 					{#await import('$lib/files/PdfView.svelte') then v}<v.default {src} />{/await}
 				</div>
 			{:else if kind === 'image'}
-				<button class="img-btn" onclick={view} aria-label="Открыть на весь экран"
+				<button class="img-btn" onclick={() => view()} aria-label="Открыть на весь экран"
 					><img {src} alt={m.title} /></button
 				>
 			{:else if mime.startsWith('video/')}
@@ -141,7 +166,7 @@
 						fileId={m.file.id}
 					/>{/await}
 			{:else if kind === 'text'}
-				<button class="no-preview open-text" onclick={view}
+				<button class="no-preview open-text" onclick={() => view()}
 					><FileIcon {mime} size={22} /> Открыть текст</button
 				>
 			{:else}
@@ -150,7 +175,11 @@
 		</div>
 	{/if}
 
-	<Comments base="/api/materials/{m.id}" canComment={can('comment')} />
+	<!-- Комментарии – ниже файлов, отдельным кусочком (бюджет страницы, 1.0.4). -->
+	{#await import('$lib/content/Comments.svelte') then c}<c.default
+			base="/api/materials/{m.id}"
+			canComment={can('comment')}
+		/>{/await}
 {/if}
 
 <style>
@@ -194,10 +223,58 @@
 		margin-top: var(--s3);
 		display: inline-flex;
 	}
+	/* Текст сообщения и описание – Markdown (1.0.4): заголовки, списки, ссылки. */
+	:global(.prose.note-text) {
+		margin-top: var(--s3);
+		overflow-wrap: anywhere;
+	}
 	.desc {
 		margin-top: var(--s3);
 		white-space: pre-wrap;
 		color: var(--text-2);
+	}
+	.topic {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+		gap: var(--s3);
+		margin: var(--s4) 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.tile {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		width: 100%;
+		padding: var(--s2);
+		border: 0;
+		text-align: left;
+		font: inherit;
+		color: inherit;
+		cursor: zoom-in;
+		transition: transform 150ms var(--ease);
+	}
+	.tile:active {
+		transform: scale(0.97);
+	}
+	.tile img,
+	.tile .ico {
+		width: 100%;
+		aspect-ratio: 4 / 3;
+		border-radius: var(--r-s);
+		object-fit: cover;
+		background: var(--surface-2);
+	}
+	.tile .ico {
+		display: grid;
+		place-items: center;
+	}
+	.fname {
+		font-weight: 560;
+		font-size: 14px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.preview {
 		margin-top: var(--s4);
