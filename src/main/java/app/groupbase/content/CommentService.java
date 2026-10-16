@@ -35,7 +35,8 @@ public class CommentService {
 
   /**
    * @param canHide скрыть и вернуть может модератор: скрытый видят только модераторы и автор
-   * @param canEdit изменить (1.0.4): свой – автор, любой – модератор (администратор, староста)
+   * @param canEdit изменить (1.0.4) – только автор: чужие слова не правит никто, даже администратор
+   *     (просьба владельца); модератор может скрыть или удалить
    * @param bodyMd исходный текст – только тому, кто может изменить
    * @param editedAt когда изменили, null – не меняли
    * @param files картинки и гифки (1.0.4)
@@ -160,8 +161,8 @@ public class CommentService {
                   r.hidden(),
                   mod || mine,
                   mod,
-                  mod || mine,
-                  mod || mine ? r.bodyMd() : null,
+                  mine,
+                  mine ? r.bodyMd() : null,
                   r.editedAt(),
                   files.getOrDefault(r.id(), List.of()),
                   reactions.getOrDefault(r.id(), List.of()));
@@ -289,10 +290,7 @@ public class CommentService {
         .getOrDefault(commentId, List.of());
   }
 
-  /**
-   * Изменить комментарий (1.0.4): свой – автор, любой – модератор (администратор сайта, староста,
-   * модератор). Правка чужого – в журнале, с прежним текстом.
-   */
+  /** Изменить комментарий (1.0.4) – только свой. */
   @Transactional
   public Comment edit(Actor actor, long commentId, String body) {
     C c = find(commentId);
@@ -300,8 +298,8 @@ public class CommentService {
     List<Long> groups = visibleParent(actor, parent, c.targetId());
     boolean own = c.authorId() != null && c.authorId() == actor.id();
     boolean mod = access.can(actor, Permission.MODERATE_CONTENT, groups);
-    if (!own && !mod) {
-      throw ApiException.forbidden();
+    if (!own) {
+      throw ApiException.forbidden("Изменить можно только свой комментарий");
     }
     boolean hasFiles =
         db.sql("SELECT count(*) FROM comment_attachments WHERE comment_id = ?")
@@ -321,15 +319,6 @@ public class CommentService {
       db.sql("UPDATE comments SET body_md = ?, body_html = ?, edited_at = ? WHERE id = ?")
           .params(md, html, now, commentId)
           .update();
-      if (!own) {
-        audit.log(
-            actor,
-            groups.getFirst(),
-            "comment.edit",
-            "comment",
-            commentId,
-            Map.of("text", snippet(before, 120), "parent", parent.id() + ":" + c.targetId()));
-      }
     }
     record Saved(long createdAt, boolean hidden, Long editedAt) {}
     Saved saved =

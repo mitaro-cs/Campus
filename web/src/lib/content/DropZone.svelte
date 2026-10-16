@@ -41,6 +41,7 @@
 
 	let pending = $state<Pending[]>([]);
 	/** Файл → номер выбора: загруженные встают в список в том порядке, в каком их выбрали. */
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- служебный порядок, не для отрисовки
 	const order = new Map<number, number>();
 	// Счётчик для формы: загрузки без ошибки, которые ещё идут.
 	const busy = $derived(pending.filter((p) => !p.error).length);

@@ -22,7 +22,8 @@ const norm = (s: string) => s.toLowerCase().replaceAll('ё', 'е');
 
 /**
  * Короткие подписи людей в обсуждении: только имя, а если имя встречается у разных людей – имя и
- * фамилия (дальше – инициал отчества, в крайнем случае ФИО целиком).
+ * первая буква фамилии («Александр Е.», 1.0.4: фамилия целиком казалась лишней), совпала и она –
+ * фамилия, дальше – инициал отчества, в крайнем случае ФИО целиком.
  */
 export function shortNames(
 	people: { id: number; displayName: string; deleted?: boolean }[]
@@ -34,12 +35,13 @@ export function shortNames(
 		const first = firstName(f);
 		const last = lastName(f);
 		if (level === 0) return first;
-		if (level === 1) return last ? `${first} ${last}` : f;
-		if (level === 2 && w.length > 2) return `${first} ${last} ${w[2][0]}.`;
+		if (level === 1) return last ? `${first} ${last[0]}.` : f;
+		if (level === 2) return last ? `${first} ${last}` : f;
+		if (level === 3 && w.length > 2) return `${first} ${last} ${w[2][0]}.`;
 		return w.join(' ');
 	};
 	const level = new Map<number, number>([...fio.keys()].map((id) => [id, 0]));
-	for (let round = 0; round < 3; round++) {
+	for (let round = 0; round < 4; round++) {
 		const byLabel = new Map<string, number[]>();
 		for (const [id, f] of fio) {
 			const key = norm(label(f, level.get(id)!));

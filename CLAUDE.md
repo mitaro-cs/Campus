@@ -753,52 +753,56 @@ SemVer (бета младше выпуска). Заметки – раздел `
   `.bottom-nav` переходы выключены – снимок сразу с новой подсветкой. Применение – кадром позже: в
   e2e ждать (`expect.poll`), а не читать атрибут сразу.
 - Правка комментариев (1.0.4): `comments.edited_at` (V38), `PATCH /api/comments/{id} {body}`
-  (`CommentService.edit`: свой – автор, любой – `moderate_content`; чужой – аудит `comment.edit`, в
-  `ModerationService.LOG_ACTIONS`), в ответе `canEdit`, `bodyMd` (только тем, кто может править),
-  `editedAt`. Фронт – на месте в `Comments.svelte`, e2e – `30-comment-edit`.
+  (`CommentService.edit`) – с 1.0.6 **только автор** (просьба владельца: чужие слова не правит даже
+  администратор; модератор скрывает и удаляет). `canEdit`, `bodyMd` – только автору, `editedAt`.
+  Действия комментария – меню «…» (`Menu`, «Действия с комментарием»). e2e – `30-comment-edit`.
+- Подписи в обсуждении (`names.ts shortNames`, 1.0.6): имя → «Имя Ф.» → «Имя Фамилия» → + инициал
+  отчества → ФИО.
+- Скачать (1.0.6): `lib/files/save.ts saveFile` – обычный `fetch` (service worker отдаёт копию из
+  `files-v1`) → blob → `<a download>`; > 50 МБ и сбой – прямая ссылка `?download=true`.
 - Репозиторий – `mitaro-cs/Campus` (переименован из StorageSystem): `UpdateCheck.LATEST`,
   `VapidKeys.PROJECT`, ссылка выпуска в `StatusController`, `tauri.conf.json` (обновление
   оболочки). `UpdateCheck` идёт по перенаправлениям (`Redirect.NORMAL`): на старый адрес GitHub
   отвечал 301, и проверка обновлений падала (1.0.2).
-- Пары подгрупп (1.0.4): `content/SubgroupLessons.ids` – у «№N» свои пары, пары других подгрупп
+- Пары подгрупп (1.0.6): `content/SubgroupLessons.ids` – у «№N» свои пары, пары других подгрупп
   того же предмета и пары без предмета с тем же названием, кроме помеченных чужим номером
   («(1 подгр.)»). Им пользуются `LessonService.list` (`?subject=`), `SubjectStore.lessonCounts` и
   проверка «к паре» `LessonRef`.
-- Подсказки клавиш (1.0.4) – класс `.kbd-hint` (app.css): на сенсорных экранах без мыши скрыт.
+- Подсказки клавиш (1.0.6) – класс `.kbd-hint` (app.css): на сенсорных экранах без мыши скрыт.
   Не называйте так другое; `.keys` занят (`PasskeysPanel`, `Hotkeys`).
-- Телефон (1.0.4): своё «назад» (`BackBar`, `SwipeBack`) – `shell/ownBack.ts backOwn()`: переход
+- Телефон (1.0.6): своё «назад» (`BackBar`, `SwipeBack`) – `shell/ownBack.ts backOwn()`: переход
   (`transition.ts`) отличает его от системного жеста Safari и анимирует. Круг нижней панели едет
   `transform` (`container-type` у `.bottom-nav`, `100cqw`); правило «без переходов при `data-nav`» –
   только для `.sidebar`. Верхняя панель без пары в переходе – `::view-transition-old/new(top-bar):only-child`.
   `offline/files.ts` – лениво из `engine.ts` (бюджет «Сегодня»).
-- Правка материалов (1.0.4): `MaterialService.update` (название, описание или текст сообщения,
+- Правка материалов (1.0.6): `MaterialService.update` (название, описание или текст сообщения,
   `url` у ссылки – тот же `link()`), `Item.descriptionHtml` – Markdown через санитайзер; окно –
   `content/MaterialEdit.svelte`, создаёт `materialActions → editMaterial()` через `mount()` и само
   себя убирает. Название сообщения – `MaterialService.firstLine` (без `#`, `-`, `**`).
-- Живые обновления (1.0.4): сервер шлёт событие `ping` с номером раз в 25 с (не комментарий – его JS
+- Живые обновления (1.0.6): сервер шлёт событие `ping` с номером раз в 25 с (не комментарий – его JS
   не видит); `live.ts`: CLOSED после ошибки – новое подключение с паузой 2…30 с, тишина > 60 с –
   заново, `online` – заново; номер из `ping` сверяется (`seen`). Тест – `lib/live.spec.ts`.
-- Аватар крупно (1.0.4): размер `768` (`AvatarService.SIZES`, не больше картинки), у старых –
+- Аватар крупно (1.0.6): размер `768` (`AvatarService.SIZES`, не больше картинки), у старых –
   отдаётся 256 (`open`). `ui/AvatarZoom.svelte` открывает его в `FileViewer` (`FileInfo.url` –
   свой адрес вместо `/api/files`). `Author` **не** трогать: он в общем коде ленты (бюджет).
-- Статус (1.0.4): `users.mood` (V39), `PUT /api/me/mood {text}` (до 80 знаков, одной строкой),
+- Статус (1.0.6): `users.mood` (V39), `PUT /api/me/mood {text}` (до 80 знаков, одной строкой),
   `Member.mood`, `Me.user.mood`; поле – `profile/AccountPanel` (🎲 – эмодзи, не значок lucide).
-- Комментарии (1.0.4): `comment_reactions`, `comment_attachments` (V40); `content/Reactions` –
+- Комментарии (1.0.6): `comment_reactions`, `comment_attachments` (V40); `content/Reactions` –
   набор (`ALL`, с 👎 😢 🤡) и сводка для новостей и комментариев; `PUT /api/comments/{id}/reactions`;
   картинки – `files` в теле `POST …/comments` (свои, не прикреплённые, только `image/*`, до 6),
   читать – кто видит комментарий (`MaterialService.canRead`), уборка сирот и `used` их знают.
   Фронт – `Comments.svelte` (`pics`, вставка из буфера), `Reactions.svelte {endpoint, reactions}`.
-- Темы (1.0.4): `material_files` (V41) – файлы после основного (`materials.file_id` – первый,
+- Темы (1.0.6): `material_files` (V41) – файлы после основного (`materials.file_id` – первый,
   обложка, копия на устройстве). Создание – `POST …/materials/batch {topic}` (`createMany`, одна
   запись), состав – `PATCH /api/materials/{id} {fileIds}` (весь список по порядку, новые – свои и не
   прикреплённые), `Item.more`. Знают их: `canRead`, `used`, уборка сирот, удаление материала, папки и
   предмета, отклонение, поиск по файлам (`FileText`, `SearchService`), архив группы (папкой).
   Фронт – `MaterialAdd` («Одной темой»), `MaterialRow` («N файлов», «Открыть» листает все),
   страница материала (`.topic` – плитки), `MaterialEdit` (убрать/добавить через `DropZone`).
-- Бюджет (1.0.4): `DropZone` и `AvatarZoom` исключены из `common` (`vite.config.ts`) – окно правки
+- Бюджет (1.0.6): `DropZone` и `AvatarZoom` исключены из `common` (`vite.config.ts`) – окно правки
   материала сделало DropZone «общим» (+2 КБ на каждой странице). Комментарии на страницах задания,
   новости и материала – лениво (`{#await import(...Comments.svelte)}`), загрузка картинок в них –
   `content/commentPics.ts` по выбору файла.
-- Загрузка файлов без права выкладывать (1.0.4): кто комментирует, может загрузить только
+- Загрузка файлов без права выкладывать (1.0.6): кто комментирует, может загрузить только
   картинку – `FileController.upload` проверяет тип по содержимому и иначе удаляет файл (403).
 

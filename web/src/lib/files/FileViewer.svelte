@@ -5,6 +5,7 @@
 	import { fileKind, TEXT_LIMIT } from '$lib/fileKinds';
 	import FileIcon from '$lib/content/FileIcon.svelte';
 	import { closeViewer, viewer } from './viewer.svelte';
+	import { saveFile } from './save';
 
 	// Просмотр файлов поверх приложения: картинки, PDF, видео, аудио и текст открываются сразу,
 	// без скачивания и без выхода из приложения. Остальное – «Скачать».
@@ -190,8 +191,12 @@
 				</div>
 			{/if}
 			{#if !pending && !file.url}
-				<a class="icon-btn" href="{src}?download=true" download={file.name} aria-label="Скачать"
-					><Download size={19} /></a
+				<a
+					class="icon-btn"
+					href="{src}?download=true"
+					download={file.name}
+					onclick={(e) => (e.preventDefault(), saveFile(file))}
+					aria-label="Скачать"><Download size={19} /></a
 				>
 			{/if}
 		</header>
@@ -257,7 +262,11 @@
 									программе.</span
 								>
 							</p>
-							<a class="btn-dl" href="{src}?download=true" download={file.name}
+							<a
+								class="btn-dl"
+								href="{src}?download=true"
+								download={file.name}
+								onclick={(e) => (e.preventDefault(), saveFile(file))}
 								><Download size={17} /> Скачать · {fmtSize(file.size)}</a
 							>
 						</div>

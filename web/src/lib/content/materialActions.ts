@@ -33,7 +33,7 @@ export function materialActions(m: Material, changed: () => void): MenuItem[] {
 	if (m.file) {
 		out.push({
 			label: 'Скачать',
-			onclick: () => (location.href = `/api/files/${m.file!.id}?download=true`)
+			onclick: () => import('$lib/files/save').then((s) => s.saveFile(m.file!))
 		});
 		// Конспект в Markdown – документом Word (сервер собирает .docx).
 		if (isMarkdown(m.file.mime, m.file.name)) {

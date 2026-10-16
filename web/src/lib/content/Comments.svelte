@@ -15,6 +15,7 @@
 	import Author from './Author.svelte';
 	import AvatarZoom from '$lib/ui/AvatarZoom.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import Menu, { type MenuItem } from '$lib/ui/Menu.svelte';
 	import Prose from '$lib/ui/Prose.svelte';
 
 	let { base, canComment = true }: { base: string; canComment?: boolean } = $props();
@@ -207,6 +208,17 @@
 		}
 	}
 
+	function actions(c: Comment): MenuItem[] {
+		const out: MenuItem[] = [];
+		if (c.canEdit && editing !== c.id) out.push({ label: 'Изменить', onclick: () => startEdit(c) });
+		if (c.canHide)
+			out.push({ label: c.hidden ? 'Вернуть' : 'Скрыть', onclick: () => toggleHidden(c) });
+		if (c.canDelete) out.push({ label: 'Удалить', danger: true, onclick: () => remove(c) });
+		else if (c.author.id !== session.me?.user.id)
+			out.push({ label: 'Пожаловаться', onclick: () => report('comment', c.id) });
+		return out;
+	}
+
 	async function remove(c: Comment) {
 		try {
 			await del(`/api/comments/${c.id}`);
@@ -260,20 +272,10 @@
 						><EyeOff size={12} /> скрыт</span
 					>{/if}
 				<span class="spacer"></span>
-				{#if c.canEdit && c.id > 0 && editing !== c.id}
-					<button class="link small" onclick={() => startEdit(c)}>Изменить</button>
-				{/if}
-				{#if c.canHide}
-					<button class="link small" onclick={() => toggleHidden(c)}
-						>{c.hidden ? 'Вернуть' : 'Скрыть'}</button
-					>
-				{/if}
-				{#if c.canDelete}
-					<button class="link small" onclick={() => remove(c)}>Удалить</button>
-				{:else if c.id > 0 && c.author.id !== session.me?.user.id}
-					<button class="link small faint" onclick={() => report('comment', c.id)}
-						>Пожаловаться</button
-					>
+				<!-- Действия – меню «…» (1.0.4): строкой кнопок на телефоне они переносились под имя. -->
+				{#if c.id > 0 && !c.sending}
+					{@const items = actions(c)}
+					{#if items.length}<Menu {items} label="Действия с комментарием" />{/if}
 				{/if}
 			</div>
 			{#if editing === c.id}
@@ -418,13 +420,16 @@
 	.comment :global(.text.dim) {
 		opacity: 0.6;
 	}
-	.head {
-		flex-wrap: wrap;
-	}
+	/* Одной строкой: имя, время, справа – «…» (1.0.4). */
 	.head {
 		display: flex;
 		align-items: center;
 		gap: 8px;
+		min-width: 0;
+		white-space: nowrap;
+	}
+	.head > :global(*) {
+		min-width: 0;
 	}
 	.link {
 		border: 0;
@@ -433,7 +438,7 @@
 		padding: 0;
 	}
 	.link:hover {
-		color: var(--danger);
+		color: var(--text);
 	}
 	.edit {
 		display: flex;

@@ -20,6 +20,7 @@
 	import Crumbs from '$lib/ui/Crumbs.svelte';
 	import Prose from '$lib/ui/Prose.svelte';
 	import { openFiles } from '$lib/files/viewer.svelte';
+	import { saveFile } from '$lib/files/save';
 	import { canPreview, fileKind } from '$lib/fileKinds';
 
 	let m = $state<Material | null>(null);
@@ -105,9 +106,11 @@
 				<Button variant="primary" onclick={() => view()}><Eye size={16} /> Листать</Button>
 			{:else if canPreview(m.file.mime, m.file.name, m.file.size)}
 				<Button variant="primary" onclick={() => view()}><Eye size={16} /> Открыть</Button>
-				<Button href="{src}?download=true"><Download size={16} /> Скачать</Button>
+				<Button onclick={() => m?.file && saveFile(m.file)}><Download size={16} /> Скачать</Button>
 			{:else}
-				<Button variant="primary" href="{src}?download=true"><Download size={16} /> Скачать</Button>
+				<Button variant="primary" onclick={() => m?.file && saveFile(m.file)}
+					><Download size={16} /> Скачать</Button
+				>
 			{/if}
 		{:else if m.kind === 'note'}
 			{@const text = m.description}

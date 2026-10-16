@@ -24,13 +24,15 @@ test('свой комментарий можно изменить на мест�
 	const comments = page.getByRole('region', { name: 'Комментарии' });
 	await expect(comments.getByText('Встречаемся в 5')).toBeVisible();
 
-	await comments.getByRole('button', { name: 'Изменить' }).click();
+	await comments.getByRole('button', { name: 'Действия с комментарием' }).click();
+	await page.getByRole('menuitem', { name: 'Изменить' }).click();
 	const box = comments.getByLabel('Изменить комментарий');
 	await expect(box).toHaveValue('Встречаемся в 5');
 	// Esc – отмена, без выхода из страницы и без изменений.
 	await box.press('Escape');
 	await expect(box).toHaveCount(0);
-	await comments.getByRole('button', { name: 'Изменить' }).click();
+	await comments.getByRole('button', { name: 'Действия с комментарием' }).click();
+	await page.getByRole('menuitem', { name: 'Изменить' }).click();
 	await box.fill('Встречаемся в 6');
 	await box.press('Control+Enter');
 	await expect(comments.getByText('Встречаемся в 6')).toBeVisible();
