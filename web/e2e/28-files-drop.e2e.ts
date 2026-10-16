@@ -44,7 +44,13 @@ test('файлы: бросить в любое место окна и встав
 		.getByRole('navigation', { name: 'Разделы предмета' })
 		.getByRole('link', { name: 'Материалы' })
 		.click();
-	for (const n of ['Лекция 3 – сети', 'Конспект', 'Билеты'])
-		await expect(page.locator('.mrow', { hasText: n }).first()).toBeVisible();
+	// Несколько файлов – по умолчанию одной темой (1.0.4): название – первого файла, внутри – все три
+	// под своими именами.
+	const topic = page.locator('.mrow', { hasText: 'Лекция 3 – сети' }).first();
+	await expect(topic.getByText('3 файла')).toBeVisible();
+	await topic.getByRole('link', { name: 'Лекция 3 – сети' }).click();
+	const tiles = page.getByRole('list', { name: 'Файлы темы' });
+	for (const n of ['Лекция 3 – сети.pdf', 'Конспект.pdf', 'Билеты.pdf'])
+		await expect(tiles.getByRole('button', { name: `Открыть ${n}` })).toBeVisible();
 	expect(errors).toEqual([]);
 });

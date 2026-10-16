@@ -235,8 +235,9 @@ public class SearchService {
           + """
             m.subject_id, s.name AS s_name, s.color AS s_color, m.created_at AS date,
               (m.hidden = 1 OR m.status = 'pending') AS hidden
-            FROM file_search JOIN materials m ON m.file_id = file_search.rowid
-            JOIN files f ON f.id = m.file_id
+            FROM file_search JOIN materials m ON (m.file_id = file_search.rowid
+              OR m.id IN (SELECT material_id FROM material_files WHERE file_id = file_search.rowid))
+            JOIN files f ON f.id = file_search.rowid
             JOIN subjects s ON s.id = m.subject_id
             WHERE file_search MATCH :q
               AND (:subject IS NULL OR m.subject_id = :subject)

@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import { ADMIN, STUDENT, login, watchConsole } from './helpers';
 
@@ -56,10 +57,16 @@ test('староста загружает материал, студент ег�
 		.click();
 	await student.getByRole('link', { name: 'Лекция 1.pdf' }).first().click();
 	await expect(student.getByRole('heading', { name: 'Лекция 1.pdf' })).toBeVisible();
-	const href = await student.getByRole('link', { name: 'Скачать' }).getAttribute('href');
-	const res = await student.request.get(href!);
-	expect(res.status()).toBe(200);
-	expect((await res.body()).subarray(0, 8).toString()).toBe('%PDF-1.4');
+	// «Скачать» (1.0.6) – через копию на устройстве: работает и когда сервер не отвечает.
+	const [dl] = await Promise.all([
+		student.waitForEvent('download'),
+		student.getByRole('button', { name: 'Скачать' }).click()
+	]);
+	// Из копии (blob), а не повторным запросом к серверу. Имя у blob-загрузки локальный headless
+	// Chromium не передаёт (как и в 08-export), поэтому сверяем содержимое.
+	expect(dl.url()).toMatch(/^blob:/);
+	const saved = await readFile((await dl.path())!);
+	expect(saved.subarray(0, 8).toString()).toBe('%PDF-1.4');
 	await student.screenshot({ path: 'test-results/shots/material-mobile.png', fullPage: true });
 	await ctx.close();
 });

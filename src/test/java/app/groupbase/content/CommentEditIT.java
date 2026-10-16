@@ -8,7 +8,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 
-/** Правка комментариев (1.0.4): свой – автор, любой – администратор и староста. */
+/** Правка комментариев (1.0.4): только свой – чужие не правит даже администратор. */
 class CommentEditIT extends IntegrationTest {
 
   private static JsonNode byId(JsonNode list, long id) {
@@ -21,7 +21,7 @@ class CommentEditIT extends IntegrationTest {
   }
 
   @Test
-  void ownByAuthorAnyByModeratorsNotByOthers() {
+  void onlyTheAuthorEdits() {
     long g = newGroup("Комментарии");
     TestUser headman = newUser(g, "headman");
     TestUser author = newUser(g, "student");
@@ -54,17 +54,18 @@ class CommentEditIT extends IntegrationTest {
     assertThat(author.api().patch("/api/comments/" + id, Map.of("body", "  ")).status())
         .isEqualTo(400);
 
-    // Староста и администратор меняют чужой; правка – в журнале.
-    assertThat(byId(headman.api().get(list).json(), id).get("canEdit").asBoolean()).isTrue();
+    // Чужие слова не правит никто – ни староста, ни администратор (1.0.4, просьба владельца):
+    // скрыть и удалить они могут.
+    JsonNode forHeadman = byId(headman.api().get(list).json(), id);
+    assertThat(forHeadman.get("canEdit").asBoolean()).isFalse();
+    assertThat(forHeadman.get("bodyMd").isNull()).isTrue();
+    assertThat(forHeadman.get("canDelete").asBoolean()).isTrue();
     assertThat(
             headman.api().patch("/api/comments/" + id, Map.of("body", "Перенесли на 7")).status())
-        .isEqualTo(200);
+        .isEqualTo(403);
     assertThat(admin().patch("/api/comments/" + id, Map.of("body", "Собрание в 7")).status())
-        .isEqualTo(200);
-    JsonNode now = byId(other.api().get(list).json(), id);
-    assertThat(now.get("bodyHtml").asString()).contains("Собрание в 7");
-    assertThat(now.get("editedAt").isNull()).isFalse();
-    String audit = admin().get("/api/groups/" + g + "/audit").body();
-    assertThat(audit).contains("comment.edit");
+        .isEqualTo(403);
+    assertThat(byId(other.api().get(list).json(), id).get("bodyHtml").asString())
+        .contains("<strong>6</strong>");
   }
 }

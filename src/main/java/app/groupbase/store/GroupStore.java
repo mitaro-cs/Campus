@@ -40,7 +40,8 @@ public class GroupStore {
               rs.getString("instance_role") == null
                   ? null
                   : app.groupbase.auth.InstanceRole.of(rs.getString("instance_role")),
-              rs.getLong("joined_at"));
+              rs.getLong("joined_at"),
+              rs.getString("mood"));
 
   private final JdbcClient db;
 
@@ -161,7 +162,7 @@ public class GroupStore {
     return db.sql(
             """
             SELECT m.user_id, u.username, u.display_name, u.avatar, u.status, m.role,
-                   u.instance_role, m.joined_at
+                   u.instance_role, m.joined_at, u.mood
             FROM memberships m JOIN users u ON u.id = m.user_id
             WHERE m.group_id = ? AND u.status != 'deleted'
             ORDER BY CASE m.role WHEN 'headman' THEN 0 WHEN 'deputy' THEN 1 ELSE 2 END,

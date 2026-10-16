@@ -15,8 +15,8 @@ public record LessonRef(long id, long startsAt, long endsAt, String kind, String
   private record Owner(long groupId, Long subjectId) {}
 
   /**
-   * Пару можно привязать к заданию или материалу предмета, если она того же предмета и её группа
-   * видна человеку. Иначе — ошибка в поле lessonId.
+   * Пару можно привязать к заданию или материалу предмета, если она того же предмета (у подгруппы –
+   * и общая пара предмета) и её группа видна человеку. Иначе — ошибка в поле lessonId.
    */
   static void check(JdbcClient db, Access access, Actor actor, long lessonId, long subjectId) {
     Owner o =
@@ -25,9 +25,10 @@ public record LessonRef(long id, long startsAt, long endsAt, String kind, String
             .query((rs, i) -> new Owner(rs.getLong(1), Rows.longOrNull(rs, "subject_id")))
             .optional()
             .orElseThrow(() -> ApiException.invalid("lessonId", "Такой пары нет в расписании"));
+    // Своя пара – или общая пара предмета у подгруппы (1.0.4, SubgroupLessons).
     if (!access.canSee(actor, List.of(o.groupId()))
-        || o.subjectId() == null
-        || o.subjectId() != subjectId) {
+        || !(o.subjectId() != null && o.subjectId() == subjectId
+            || SubgroupLessons.ids(db, subjectId, List.of(o.groupId())).contains(lessonId))) {
       throw ApiException.invalid("lessonId", "Пара другого предмета");
     }
   }

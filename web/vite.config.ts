@@ -75,7 +75,10 @@ export default defineConfig({
 								!FIELDS.test(id) &&
 								!/[\\/]lib[\\/]schedule[\\/]/.test(id) &&
 								// «Кто на сайте» (1.0.2) – только в ленивых частях.
-								!/[\\/]lib[\\/]presence\.svelte\.ts$/.test(id),
+								!/[\\/]lib[\\/]presence\.svelte\.ts$/.test(id) &&
+								// Загрузка файлов и аватар крупно (1.0.4) – в окнах и списках людей: окно
+								// правки материала сделало DropZone «общим», и он утяжелил каждую страницу.
+								!/[\\/]lib[\\/](content[\\/]DropZone|ui[\\/]AvatarZoom)\.svelte$/.test(id),
 							minShareCount: 6,
 							priority: 1
 						}

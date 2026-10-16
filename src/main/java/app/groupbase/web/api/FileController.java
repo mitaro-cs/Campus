@@ -59,7 +59,10 @@ class FileController {
 
   @PostMapping("/api/files")
   Uploaded upload(Actor actor, HttpServletRequest req) throws IOException {
-    if (!materials.canUploadAnywhere(actor)) {
+    // Без права выкладывать – только картинки и гифки для комментариев (1.0.4); тип – по
+    // содержимому, после сохранения.
+    boolean any = materials.canUploadAnywhere(actor);
+    if (!any && !materials.canUploadPictures(actor)) {
       throw ApiException.forbidden();
     }
     long declared = req.getContentLengthLong();
@@ -79,6 +82,10 @@ class FileController {
             : header == null ? "file" : URLDecoder.decode(header, StandardCharsets.UTF_8);
     try (InputStream body = req.getInputStream()) {
       StoredFile f = files.store(body, name, actor.id());
+      if (!any && (f.mime() == null || !f.mime().startsWith("image/"))) {
+        files.delete(f);
+        throw ApiException.forbidden();
+      }
       return new Uploaded(f.id(), f.name(), f.mime(), f.size());
     }
   }

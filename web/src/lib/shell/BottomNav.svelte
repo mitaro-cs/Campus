@@ -73,11 +73,15 @@
 		box-shadow:
 			0 18px 40px -12px rgb(0 0 0 / 0.4),
 			inset 0 1px 0 rgb(255 255 255 / 0.06);
+		/* 100cqw – ширина ряда иконок: круг едет сдвигом (transform), а не left – без перерасчёта
+		   вёрстки на каждом кадре, плавно и на слабом телефоне. */
+		container-type: inline-size;
 	}
 	.pill {
 		position: absolute;
 		top: 50%;
-		left: calc(6px + (100% - 12px) / var(--n) * var(--i) + ((100% - 12px) / var(--n) - 46px) / 2);
+		left: calc(6px + ((100% - 12px) / var(--n) - 46px) / 2);
+		transform: translateX(calc(100cqw / var(--n) * var(--i)));
 		width: 46px;
 		height: 46px;
 		margin-top: -23px;
@@ -85,7 +89,7 @@
 		background: #fff;
 		box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
 		transition:
-			left 380ms cubic-bezier(0.3, 1.35, 0.5, 1),
+			transform 380ms cubic-bezier(0.3, 1.35, 0.5, 1),
 			opacity 200ms var(--ease);
 	}
 	.pill.hidden {

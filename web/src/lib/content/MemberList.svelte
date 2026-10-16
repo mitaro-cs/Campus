@@ -4,7 +4,7 @@
 	import { t } from '$lib/i18n/ru';
 	import { fly, stagger } from '$lib/motion';
 	import type { Member } from '$lib/types';
-	import Avatar from '$lib/ui/Avatar.svelte';
+	import AvatarZoom from '$lib/ui/AvatarZoom.svelte';
 	import Menu, { type MenuItem } from '$lib/ui/Menu.svelte';
 	import Skeleton from '$lib/ui/Skeleton.svelte';
 	import { session } from '$lib/session.svelte';
@@ -77,11 +77,12 @@
 					class="av"
 					class:on={isOnline(m.userId)}
 					title={isOnline(m.userId) ? 'На сайте' : undefined}
-					><Avatar id={m.userId} name={m.displayName} avatar={m.avatar} size={36} /></span
+					><AvatarZoom id={m.userId} name={m.displayName} avatar={m.avatar} size={36} /></span
 				>
 				<div class="who">
 					<strong>{m.displayName}</strong>
 					{#if m.username}<span class="faint small">@{m.username}</span>{/if}
+					{#if m.mood}<span class="mood small" title={m.mood}>{m.mood}</span>{/if}
 					{#if m.userId === session.me?.user.id || m.instanceRole || m.role !== 'student' || m.status !== 'active'}
 						<span class="tags">
 							{#if m.userId === session.me?.user.id}<span class="chip">это вы</span>{/if}
@@ -141,6 +142,14 @@
 	}
 	.who strong {
 		font-weight: 560;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	/* Статус «для себя» (1.0.4) – одной строкой, курсивом, как подпись. */
+	.mood {
+		color: var(--text-2);
+		font-style: italic;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;

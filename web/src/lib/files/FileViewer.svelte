@@ -5,6 +5,7 @@
 	import { fileKind, TEXT_LIMIT } from '$lib/fileKinds';
 	import FileIcon from '$lib/content/FileIcon.svelte';
 	import { closeViewer, viewer } from './viewer.svelte';
+	import { saveFile } from './save';
 
 	// Просмотр файлов поверх приложения: картинки, PDF, видео, аудио и текст открываются сразу,
 	// без скачивания и без выхода из приложения. Остальное – «Скачать».
@@ -17,8 +18,8 @@
 
 	const file = $derived(viewer.files[viewer.index]);
 	const kind = $derived(file ? fileKind(file.mime, file.name) : 'other');
-	const src = $derived(file ? `/api/files/${file.id}` : '');
-	const pending = $derived(!!file && file.id <= 0);
+	const src = $derived(file ? (file.url ?? `/api/files/${file.id}`) : '');
+	const pending = $derived(!!file && !file.url && file.id <= 0);
 	const many = $derived(viewer.files.length > 1);
 
 	$effect(() => {
@@ -171,7 +172,7 @@
 			<div class="name">
 				<strong>{file.name}</strong>
 				<span class="small num"
-					>{fmtSize(file.size)}{many
+					>{file.url ? 'Фото профиля' : fmtSize(file.size)}{many
 						? ` · ${viewer.index + 1} из ${viewer.files.length}`
 						: ''}{viewer.title ? ` · ${viewer.title}` : ''}</span
 				>
@@ -189,9 +190,13 @@
 					>
 				</div>
 			{/if}
-			{#if !pending}
-				<a class="icon-btn" href="{src}?download=true" download={file.name} aria-label="Скачать"
-					><Download size={19} /></a
+			{#if !pending && !file.url}
+				<a
+					class="icon-btn"
+					href="{src}?download=true"
+					download={file.name}
+					onclick={(e) => (e.preventDefault(), saveFile(file))}
+					aria-label="Скачать"><Download size={19} /></a
 				>
 			{/if}
 		</header>
@@ -257,7 +262,11 @@
 									программе.</span
 								>
 							</p>
-							<a class="btn-dl" href="{src}?download=true" download={file.name}
+							<a
+								class="btn-dl"
+								href="{src}?download=true"
+								download={file.name}
+								onclick={(e) => (e.preventDefault(), saveFile(file))}
 								><Download size={17} /> Скачать · {fmtSize(file.size)}</a
 							>
 						</div>

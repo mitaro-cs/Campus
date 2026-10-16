@@ -120,8 +120,3 @@ export async function usage(): Promise<{ files: number; bytes: number | null }> 
 export async function forgetFiles() {
 	if (available()) await caches.delete(FILES_CACHE);
 }
-
-/** Просим браузер не удалять данные при нехватке места (установленным приложениям он обычно разрешает). */
-export function requestPersistence() {
-	navigator.storage?.persist?.().catch(() => {});
-}

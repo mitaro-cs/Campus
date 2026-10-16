@@ -30,16 +30,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /**
- * Аватары пользователей, групп и предметов. Картинка перекодируется с нуля (квадрат по центру, 256
- * и 64 px, WebP), поэтому EXIF — геолокация, модель телефона — не сохраняется. Файлы на диске
- * зашифрованы, имя — случайный идентификатор (он же ключ кеша: {@code immutable}).
+ * Аватары пользователей, групп и предметов. Картинка перекодируется с нуля (квадрат по центру, 768
+ * – посмотреть крупно, с 1.0.4 – 256 и 64 px, WebP), поэтому EXIF — геолокация, модель телефона —
+ * не сохраняется. Файлы на диске зашифрованы, имя — случайный идентификатор (он же ключ кеша:
+ * {@code immutable}).
  */
 @Service
 public class AvatarService {
 
   public static final int MAX_BYTES = 5 * 1024 * 1024;
   private static final int MAX_SIDE = 8000;
-  public static final int[] SIZES = {256, 64};
+  public static final int[] SIZES = {768, 256, 64};
+
+  /** Крупный размер – для просмотра; у загруженных до 1.0.4 его нет, отдаём 256. */
+  static final int LARGE = 768;
 
   /** Фон карточки предмета: 16:9, ширина 1280 (крупно) и 480 (плитки в списке). */
   public static final int[] COVER_WIDTHS = {1280, 480};
@@ -49,7 +53,7 @@ public class AvatarService {
 
   private static final Pattern ID = Pattern.compile("[0-9a-f]{20}");
   private static final Pattern NAME =
-      Pattern.compile("([0-9a-f]{20})-(256|64|1280|480|1920)\\.webp");
+      Pattern.compile("([0-9a-f]{20})-(768|256|64|1280|480|1920)\\.webp");
 
   private final Path dir;
   private final byte[] key;
@@ -74,7 +78,9 @@ public class AvatarService {
     String id = HexFormat.of().formatHex(Tokens.randomBytes(10));
     Files.createDirectories(dir);
     for (int size : SIZES) {
-      byte[] webp = encodeWebp(resize(square, size));
+      // Крупный – не больше самой картинки (маленькую не растягиваем), но не меньше 256.
+      int side = size == LARGE ? Math.clamp(square.getWidth(), 256, LARGE) : size;
+      byte[] webp = encodeWebp(resize(square, side));
       String name = id + "-" + size + ".webp";
       Path part = dir.resolve(name + ".part");
       try (OutputStream out = FileCrypto.encrypt(Files.newOutputStream(part), key, name)) {
@@ -165,6 +171,10 @@ public class AvatarService {
       return null;
     }
     Path p = dir.resolve(name);
+    if (!Files.exists(p) && name.endsWith("-" + LARGE + ".webp")) {
+      name = name.replace("-" + LARGE + ".webp", "-256.webp");
+      p = dir.resolve(name);
+    }
     if (!Files.exists(p)) {
       return null;
     }

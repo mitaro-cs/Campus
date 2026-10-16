@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -49,7 +50,9 @@ class MeController {
       Map<String, Object> appearance,
       String background,
       // Принял ли действующие правила сайта; нет — интерфейс спросит согласие.
-      boolean termsAccepted) {}
+      boolean termsAccepted,
+      // Статус (1.0.4) – строка под именем; null – нет.
+      String mood) {}
 
   record GroupView(
       long id,
@@ -192,7 +195,8 @@ class MeController {
             users.tips(u.id()),
             Appearance.parse(users.appearance(u.id())),
             users.background(u.id()),
-            terms.version().equals(users.termsAccepted(u.id()))),
+            terms.version().equals(users.termsAccepted(u.id())),
+            users.mood(u.id())),
         actor.restriction() == null ? null : actor.restriction().id(),
         new InstanceView(
             name,
@@ -252,6 +256,23 @@ class MeController {
         Session.of(g),
         g.sessionNav());
   }
+
+  record MoodBody(String text) {}
+
+  /**
+   * Статус «для себя» (1.0.4): до 80 знаков в одну строку; пусто – убрать. Видят участники групп.
+   */
+  @PutMapping("/mood")
+  Map<String, Object> mood(Actor actor, @RequestBody MoodBody b) {
+    String text = b.text() == null ? "" : b.text().replaceAll("\\s+", " ").strip();
+    if (text.codePointCount(0, text.length()) > MOOD_MAX) {
+      throw ApiException.invalid("text", "Статус – до " + MOOD_MAX + " знаков");
+    }
+    users.setMood(actor.id(), text.isEmpty() ? null : text);
+    return text.isEmpty() ? Map.of() : Map.of("mood", text);
+  }
+
+  static final int MOOD_MAX = 80;
 
   @PatchMapping
   Map<String, String> update(Actor actor, @RequestBody ProfileBody b) {

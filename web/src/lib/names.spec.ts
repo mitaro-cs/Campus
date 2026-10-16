@@ -56,21 +56,28 @@ describe('shortNames', () => {
 		expect(m.get(2)).toBe('Анна');
 	});
 
-	it('adds the surname when first names match', () => {
+	it('adds the surname initial when first names match', () => {
 		const m = shortNames([
 			p(1, 'Петров Иван Сергеевич'),
 			p(2, 'Сидоров Иван Олегович'),
 			p(3, 'Козлова Мария')
 		]);
-		expect(m.get(1)).toBe('Иван Петров');
-		expect(m.get(2)).toBe('Иван Сидоров');
+		expect(m.get(1)).toBe('Иван П.');
+		expect(m.get(2)).toBe('Иван С.');
 		expect(m.get(3)).toBe('Мария');
+	});
+
+	it('the whole surname only when the initials match too', () => {
+		const m = shortNames([p(1, 'Петров Иван'), p(2, 'Павлов Иван'), p(3, 'Сидоров Иван')]);
+		expect(m.get(1)).toBe('Иван Петров');
+		expect(m.get(2)).toBe('Иван Павлов');
+		expect(m.get(3)).toBe('Иван С.');
 	});
 
 	it('treats ё and е as the same letter', () => {
 		const m = shortNames([p(1, 'Орлов Артём'), p(2, 'Лисин Артем')]);
-		expect(m.get(1)).toBe('Артём Орлов');
-		expect(m.get(2)).toBe('Артем Лисин');
+		expect(m.get(1)).toBe('Артём О.');
+		expect(m.get(2)).toBe('Артем Л.');
 	});
 
 	it('falls back to the patronymic initial for namesakes', () => {

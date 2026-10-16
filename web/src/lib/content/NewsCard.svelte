@@ -76,7 +76,11 @@
 					><Paperclip size={14} /> <span class="num">{item.attachments.length}</span></span
 				>{/if}
 		{/if}
-		{#await import('./Reactions.svelte') then m}<m.default {item} />{/await}
+		{#await import('./Reactions.svelte') then m}<m.default
+				endpoint="/api/news/{item.id}/reactions"
+				reactions={item.reactions}
+				off={item.id < 0}
+			/>{/await}
 	</footer>
 </article>
 

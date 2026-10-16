@@ -176,6 +176,17 @@ class MaterialsIT extends IntegrationTest {
     }
     assertThat(s1.api().upload("x.pdf", PDF).status()).isEqualTo(403);
     assertThat(s1.api().post("/api/subjects/" + s + "/materials", link).status()).isEqualTo(403);
+    // Картинку для комментария – можно (1.0.4).
+    var png = new java.io.ByteArrayOutputStream();
+    try {
+      javax.imageio.ImageIO.write(
+          new java.awt.image.BufferedImage(4, 4, java.awt.image.BufferedImage.TYPE_INT_RGB),
+          "png",
+          png);
+    } catch (java.io.IOException e) {
+      throw new java.io.UncheckedIOException(e);
+    }
+    assertThat(s1.api().upload("мем.png", png.toByteArray()).status()).isEqualTo(200);
 
     headman
         .api()
@@ -504,6 +515,141 @@ class MaterialsIT extends IntegrationTest {
     assertThat(list.get(0).get("can").get("pin").asBoolean()).isFalse();
     // Поиск находит сообщение по тексту.
     assertThat(student.api().get("/api/search?q=Ряды").body()).contains("Билеты к экзамену");
+  }
+
+  @Test
+  void topicHoldsManyFilesAndTheyCanBeChanged() {
+    long g = newGroup("Темы");
+    TestUser headman = newUser(g, "headman");
+    TestUser student = newUser(g, "student");
+    long outsiderGroup = newGroup("Чужая");
+    TestUser outsider = newUser(outsiderGroup, "student");
+    long s = subject(g);
+    List<Long> ids = new java.util.ArrayList<>();
+    for (int i = 1; i <= 3; i++) {
+      ids.add(headman.api().upload("Слайд " + i + ".pdf", PDF).json().get("id").asLong());
+    }
+    var topic =
+        headman
+            .api()
+            .post(
+                "/api/subjects/" + s + "/materials/batch",
+                Map.of("fileIds", ids, "topic", "Лекция 3", "description", ""));
+    assertThat(topic.status()).as(topic.body()).isEqualTo(200);
+    assertThat(topic.json().size()).isEqualTo(1);
+    var m = topic.json().get(0);
+    long id = m.get("id").asLong();
+    assertThat(m.get("title").asString()).isEqualTo("Лекция 3");
+    assertThat(m.get("file").get("id").asLong()).isEqualTo(ids.get(0));
+    assertThat(m.get("more").size()).isEqualTo(2);
+    assertThat(m.get("more").get(1).get("name").asString()).isEqualTo("Слайд 3.pdf");
+
+    // Файлы темы видят те, кто видит материал.
+    assertThat(student.api().download("/api/files/" + ids.get(2)).statusCode()).isEqualTo(200);
+    assertThat(outsider.api().download("/api/files/" + ids.get(2)).statusCode()).isEqualTo(404);
+    // Файл темы второй раз не прикрепить.
+    assertThat(
+            headman
+                .api()
+                .post(
+                    "/api/subjects/" + s + "/materials",
+                    Map.of("kind", "file", "fileId", ids.get(1)))
+                .status())
+        .isEqualTo(403);
+
+    // Добавить файл, убрать первый – второй становится основным.
+    long added = headman.api().upload("Слайд 4.pdf", PDF).json().get("id").asLong();
+    var changed =
+        headman
+            .api()
+            .patch(
+                "/api/materials/" + id, Map.of("fileIds", List.of(ids.get(1), ids.get(2), added)));
+    assertThat(changed.status()).as(changed.body()).isEqualTo(200);
+    assertThat(changed.json().get("file").get("id").asLong()).isEqualTo(ids.get(1));
+    assertThat(changed.json().get("more").size()).isEqualTo(2);
+    // Чужой файл в тему не взять, пустой темы не бывает.
+    long foreign = student.api().upload("моё.pdf", PDF).json().get("id").asLong();
+    assertThat(
+            headman
+                .api()
+                .patch("/api/materials/" + id, Map.of("fileIds", List.of(ids.get(1), foreign)))
+                .status())
+        .isEqualTo(403);
+    assertThat(headman.api().patch("/api/materials/" + id, Map.of("fileIds", List.of())).status())
+        .isEqualTo(400);
+
+    // Одна пачка без темы – по материалу на файл, как раньше.
+    long a = headman.api().upload("a.pdf", PDF).json().get("id").asLong();
+    long b = headman.api().upload("b.pdf", PDF).json().get("id").asLong();
+    var many =
+        headman
+            .api()
+            .post(
+                "/api/subjects/" + s + "/materials/batch",
+                Map.of("fileIds", List.of(a, b), "description", ""));
+    assertThat(many.json().size()).isEqualTo(2);
+
+    // Удалили тему – файлы ушли.
+    assertThat(headman.api().delete("/api/materials/" + id).status()).isEqualTo(200);
+    assertThat(headman.api().download("/api/files/" + added).statusCode()).isEqualTo(404);
+  }
+
+  @Test
+  void notesAndLinksAreEditedAndNotesRenderMarkdown() {
+    long g = newGroup("Правка материалов");
+    TestUser headman = newUser(g, "headman");
+    TestUser author = newUser(g, "student");
+    TestUser other = newUser(g, "student");
+    long s = subject(g);
+    var note =
+        author
+            .api()
+            .post(
+                "/api/subjects/" + s + "/materials",
+                Map.of("kind", "note", "description", "## План текста\n\n- **введение**\n- вывод"));
+    assertThat(note.status()).as(note.body()).isEqualTo(200);
+    long id = note.json().get("id").asLong();
+    // Название – первая строка без разметки, текст – в HTML.
+    var got = other.api().get("/api/materials/" + id).json();
+    assertThat(got.get("title").asString()).isEqualTo("План текста");
+    assertThat(got.get("descriptionHtml").asString())
+        .contains("<h2>План текста</h2>")
+        .contains("<strong>введение</strong>");
+
+    // Чужой студент не правит, автор и староста – да.
+    assertThat(other.api().patch("/api/materials/" + id, Map.of("description", "взлом")).status())
+        .isEqualTo(403);
+    var edited =
+        author
+            .api()
+            .patch(
+                "/api/materials/" + id,
+                Map.of("title", "", "description", "# Новый план\n<script>x</script>"));
+    assertThat(edited.status()).as(edited.body()).isEqualTo(200);
+    assertThat(edited.json().get("title").asString()).isEqualTo("Новый план");
+    assertThat(edited.json().get("descriptionHtml").asString()).doesNotContain("<script");
+    assertThat(author.api().patch("/api/materials/" + id, Map.of("description", "  ")).status())
+        .isEqualTo(400);
+    var byHeadman = headman.api().patch("/api/materials/" + id, Map.of("title", "План (староста)"));
+    assertThat(byHeadman.json().get("title").asString()).isEqualTo("План (староста)");
+
+    // Ссылка: адрес меняется с той же проверкой.
+    var link =
+        author
+            .api()
+            .post(
+                "/api/subjects/" + s + "/materials",
+                Map.of("kind", "link", "url", "https://example.org/a"));
+    long linkId = link.json().get("id").asLong();
+    var moved =
+        author.api().patch("/api/materials/" + linkId, Map.of("url", "https://example.org/b"));
+    assertThat(moved.json().get("url").asString()).isEqualTo("https://example.org/b");
+    assertThat(
+            author
+                .api()
+                .patch("/api/materials/" + linkId, Map.of("url", "javascript:alert(1)"))
+                .status())
+        .isEqualTo(400);
   }
 
   @Test

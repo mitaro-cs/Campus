@@ -73,6 +73,17 @@ class AvatarsIT extends IntegrationTest {
       assertThat(img.getHeight()).isEqualTo(size);
     }
 
+    // Крупный – посмотреть (1.0.4): не больше картинки и не меньше 256; у старых аватаров его нет –
+    // отдаётся 256.
+    var large = u.api().download("/api/avatars/" + id + "-768.webp");
+    assertThat(large.statusCode()).isEqualTo(200);
+    int side = ImageIO.read(new ByteArrayInputStream(large.body())).getWidth();
+    assertThat(side).isBetween(256, 768);
+    Files.delete(props.dataDir().resolve("avatars").resolve(id + "-768.webp"));
+    var fallback = u.api().download("/api/avatars/" + id + "-768.webp");
+    assertThat(fallback.statusCode()).isEqualTo(200);
+    assertThat(ImageIO.read(new ByteArrayInputStream(fallback.body())).getWidth()).isEqualTo(256);
+
     // На диске аватар зашифрован.
     try (Stream<Path> files = Files.list(props.dataDir().resolve("avatars"))) {
       for (Path p : files.toList()) {

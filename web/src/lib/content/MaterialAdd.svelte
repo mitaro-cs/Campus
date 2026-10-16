@@ -41,6 +41,8 @@
 	let description = $state('');
 	/** Текст уведомления для пачки файлов (1.0.1): одно на всех, а не по штуке на файл. */
 	let notice = $state('');
+	/** Тема (1.0.4): несколько файлов – одним материалом, листаются в просмотре. */
+	let asTopic = $state(true);
 	let error = $state('');
 	let busy = $state(false);
 	const dirty = $derived(files.length > 0 || !!url || !!title || !!description || !!notice);
@@ -49,6 +51,7 @@
 		if (open) {
 			files = [];
 			url = title = description = notice = error = '';
+			asTopic = true;
 		}
 	});
 
@@ -89,7 +92,8 @@
 						description,
 						folderId,
 						lessonId,
-						notice
+						notice,
+						...(asTopic ? { topic: title } : {})
 					});
 				} else {
 					for (const f of files) {
@@ -166,6 +170,29 @@
 			</div>
 		{/if}
 		{#if mode === 'file' && files.length > 1}
+			<label class="topic-switch">
+				<input type="checkbox" bind:checked={asTopic} />
+				<span>
+					<strong>Одной темой</strong>
+					<span class="faint small"
+						>{asTopic
+							? `${files.length} ${plural(files.length, ['файл', 'файла', 'файлов'])} – один материал, листаются по порядку`
+							: 'Каждый файл – отдельным материалом'}</span
+					>
+				</span>
+			</label>
+			{#if asTopic}
+				<div>
+					<label class="label" for="m-topic">Название темы</label>
+					<input
+						id="m-topic"
+						class="input"
+						bind:value={title}
+						maxlength="200"
+						placeholder={files[0]?.name.replace(/\.[^.]+$/, '') ?? 'Например: Лекция 3'}
+					/>
+				</div>
+			{/if}
 			<div>
 				<label class="label" for="m-notice"
 					>Текст уведомления <span class="faint">(необязательно)</span></label
@@ -226,6 +253,24 @@
 		border-radius: var(--r-s);
 		background: var(--amber-soft);
 		color: var(--amber);
+	}
+	.topic-switch {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		padding: 10px 12px;
+		border: 1px solid var(--border);
+		border-radius: 14px;
+		cursor: pointer;
+	}
+	.topic-switch input {
+		margin-top: 3px;
+		accent-color: var(--accent);
+	}
+	.topic-switch > span {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
 	}
 	.switch {
 		display: grid;

@@ -16,7 +16,8 @@ import { uploadFile } from '$lib/upload';
 import { all, dropDb, getMeta, one, openDb, setMeta, supported, write, lastUser } from './idb';
 import type { StoreName } from './idb';
 import type { FolderRef, Snapshot } from './local';
-import { forgetFiles, prefetchFiles, requestPersistence } from './files';
+// Файлы на устройстве – отдельным кусочком: на первом кадре не нужны (бюджет «Сегодня», 1.0.4).
+const files = () => import('./files');
 import { KINDS, type HomeworkKind } from '$lib/content/kinds';
 import { offline } from './state.svelte';
 
@@ -144,7 +145,8 @@ export async function initOffline(me: Me) {
 	import('./local').catch(() => {});
 	offline.lastSync = (await getMeta<number>('lastSync')) ?? 0;
 	offline.pending = (await all('outbox')).length;
-	requestPersistence();
+	// Просим браузер не удалять данные при нехватке места (установленным приложениям он разрешает).
+	navigator.storage?.persist?.().catch(() => {});
 	if (!timer) {
 		timer = setInterval(() => {
 			if (document.visibilityState === 'visible') run();
@@ -172,7 +174,7 @@ export async function wipeOffline() {
 	offline.ready = false;
 	offline.pending = 0;
 	if (u !== null) await dropDb(u);
-	await forgetFiles();
+	await (await files()).forgetFiles();
 }
 
 async function run() {
@@ -248,7 +250,7 @@ async function doSync() {
 		offline.lastSync = Date.now();
 		if (touched) changed();
 		else mirror = null;
-		prefetchFiles(await snapshot());
+		(await files()).prefetchFiles(await snapshot());
 	} catch {
 		/* сеть пропала или сервер недоступен – попробуем позже */
 	} finally {

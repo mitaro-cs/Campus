@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { AtSign, Camera } from '@lucide/svelte';
-	import { del, patch } from '$lib/api';
+	import { del, patch, put } from '$lib/api';
 	import { t } from '$lib/i18n/ru';
 	import { fioError } from '$lib/fio';
 	import { loadMe, session } from '$lib/session.svelte';
@@ -24,6 +24,42 @@
 			toast('ФИО сохранено', 'ok');
 		} catch (err) {
 			toastError(err);
+		}
+	}
+
+	// Статус (1.0.4) – что угодно, хоть глупость: видят участники группы под именем.
+	const MOODS = [
+		'сплю на паре 😴',
+		'ищу смысл жизни и конспект',
+		'кофе > сон ☕',
+		'не трогать до сессии',
+		'в поисках зачёта 🔍',
+		'дедлайн? не слышал',
+		'учусь… наверное 📚',
+		'на больничном от понедельников',
+		'гуманитарий в мире матана',
+		'сдам всё. потом.'
+	];
+	let mood = $derived(me.user.mood ?? '');
+	let moodBusy = $state(false);
+	const moodChanged = $derived(mood.trim() !== (me.user.mood ?? ''));
+
+	function randomMood() {
+		const others = MOODS.filter((m) => m !== mood);
+		mood = others[Math.floor(Math.random() * others.length)];
+	}
+
+	async function saveMood(e?: SubmitEvent) {
+		e?.preventDefault();
+		moodBusy = true;
+		try {
+			await put('/api/me/mood', { text: mood });
+			await loadMe();
+			toast(mood.trim() ? 'Статус обновлён' : 'Статус убран', 'ok');
+		} catch (err) {
+			toastError(err);
+		} finally {
+			moodBusy = false;
 		}
 	}
 
@@ -66,6 +102,29 @@
 </section>
 
 <section class="card pane">
+	<h3>Статус</h3>
+	<p class="muted small">
+		Пара слов о себе – серьёзно или нет. Видят участники группы под вашим именем.
+	</p>
+	<form class="mood-form" onsubmit={saveMood}>
+		<label class="sr-only" for="mood">Статус</label>
+		<input
+			id="mood"
+			class="input"
+			bind:value={mood}
+			maxlength="80"
+			placeholder="Например: {MOODS[0]}"
+			autocomplete="off"
+		/>
+		<!-- Кубик – эмодзи, а не значок lucide: новый значок утяжелил бы общий код «Сегодня». -->
+		<button type="button" class="icon-btn" onclick={randomMood} aria-label="Придумать статус"
+			><span class="dice" aria-hidden="true">🎲</span></button
+		>
+		<Button type="submit" loading={moodBusy} disabled={!moodChanged}>Сохранить</Button>
+	</form>
+</section>
+
+<section class="card pane">
 	<h3>ФИО</h3>
 	<p class="muted small">Как вас видят в группе: в списке участников, у новостей и комментариев.</p>
 	<form class="name-form" onsubmit={saveName}>
@@ -87,6 +146,19 @@
 {/if}
 
 <style>
+	.mood-form {
+		display: flex;
+		gap: var(--s2);
+		margin-top: var(--s3);
+	}
+	.dice {
+		font-size: 18px;
+		line-height: 1;
+	}
+	.mood-form .input {
+		flex: 1;
+		min-width: 0;
+	}
 	.who {
 		display: flex;
 		align-items: center;

@@ -44,11 +44,24 @@ public class MaterialService {
       String url,
       Long fileId,
       Long folderId,
-      Long lessonId) {
+      Long lessonId,
+      // Тема (1.0.4): файлы по порядку – при правке весь список, первый станет основным.
+      List<Long> fileIds) {
 
     public Input(
         String kind, String title, String description, String url, Long fileId, Long folderId) {
-      this(kind, title, description, url, fileId, folderId, null);
+      this(kind, title, description, url, fileId, folderId, null, null);
+    }
+
+    public Input(
+        String kind,
+        String title,
+        String description,
+        String url,
+        Long fileId,
+        Long folderId,
+        Long lessonId) {
+      this(kind, title, description, url, fileId, folderId, lessonId, null);
     }
   }
 
@@ -68,6 +81,8 @@ public class MaterialService {
       String kind,
       String title,
       String description,
+      // Описание (у сообщения – весь текст) в HTML: Markdown через санитайзер (1.0.4).
+      String descriptionHtml,
       String url,
       FileInfo file,
       Person author,
@@ -81,7 +96,9 @@ public class MaterialService {
       // Закреплён сверху с этого момента; null — нет.
       Long pinnedAt,
       // Скрыт этим человеком у себя (0.9.8): в списке – свёрнутым разделом «Скрытые».
-      boolean dismissed) {}
+      boolean dismissed,
+      // Тема (1.0.4): остальные файлы после основного – листаются в просмотре.
+      List<FileInfo> more) {}
 
   public record Folder(long id, Long parentId, String name, int count) {}
 
@@ -112,9 +129,26 @@ public class MaterialService {
     }
   }
 
-  /** Пачка файлов одним запросом (1.0.1): все – с одним описанием, папкой и парой. */
+  /**
+   * Пачка файлов одним запросом (1.0.1): все – с одним описанием, папкой и парой. {@code topic}
+   * (1.0.4) – не пусто: одна тема с этим названием и всеми файлами, а не материал на файл.
+   */
   public record Batch(
-      List<Long> fileIds, String description, Long folderId, Long lessonId, String notice) {}
+      List<Long> fileIds,
+      String description,
+      Long folderId,
+      Long lessonId,
+      String notice,
+      String topic) {
+
+    public Batch(
+        List<Long> fileIds, String description, Long folderId, Long lessonId, String notice) {
+      this(fileIds, description, folderId, lessonId, notice, null);
+    }
+  }
+
+  /** Файлов в одной теме – не больше. */
+  public static final int TOPIC_MAX = 50;
 
   /** Больше за раз не принимаем – и столько же DropZone даёт выбрать. */
   public static final int BATCH_MAX = 100;
@@ -449,6 +483,42 @@ public class MaterialService {
     if (notice.length() > NOTICE_MAX) {
       throw ApiException.invalid("notice", "Уведомление – до " + NOTICE_MAX + " символов");
     }
+    String topic = in.topic() == null ? "" : in.topic().strip();
+    if (in.topic() != null && ids.size() > 1) {
+      // Тема: один материал, файлы листаются; название – своё или первого файла.
+      if (ids.size() > TOPIC_MAX) {
+        throw ApiException.invalid("fileIds", "В теме – не больше " + TOPIC_MAX + " файлов");
+      }
+      for (long f : ids) {
+        requireOwnFree(actor, f);
+      }
+      if (topic.isEmpty()) {
+        topic = files.find(ids.getFirst()).orElseThrow().name().replaceFirst("\\.[^.]+$", "");
+      }
+      Added t =
+          add(
+              actor,
+              subjectId,
+              new Input(
+                  "file",
+                  topic,
+                  in.description(),
+                  null,
+                  ids.getFirst(),
+                  in.folderId(),
+                  in.lessonId()));
+      setExtraFiles(t.id(), ids.subList(1, ids.size()));
+      events.publishEvent(
+          new Submitted(
+              t.id(),
+              subjectId,
+              t.title(),
+              t.status(),
+              actor.id(),
+              1,
+              notice.isEmpty() ? null : notice));
+      return visible(actor, List.of(t.id()));
+    }
     List<Added> added = new ArrayList<>(ids.size());
     for (long fileId : ids) {
       added.add(
@@ -521,8 +591,7 @@ public class MaterialService {
           throw ApiException.invalid("description", "Напишите или вставьте текст сообщения");
         }
         if (title.isEmpty()) {
-          String first = text.lines().findFirst().orElse("").strip();
-          title = first.length() > 80 ? first.substring(0, 79).strip() + "…" : first;
+          title = firstLine(text);
         }
       }
       default -> throw ApiException.invalid("kind", "Тип материала: файл, ссылка или сообщение");
@@ -578,11 +647,28 @@ public class MaterialService {
     if (!canEdit(actor, r, groups)) {
       throw ApiException.forbidden();
     }
+    String description = in.description() == null ? r.description() : in.description().strip();
+    boolean note = "note".equals(r.kind());
+    if (note && description.isEmpty()) {
+      throw ApiException.invalid("description", "Напишите или вставьте текст сообщения");
+    }
+    int max = note ? 8000 : 2000;
+    if (description.length() > max) {
+      throw ApiException.invalid(
+          "description", (note ? "Сообщение" : "Описание") + " – до " + max + " символов");
+    }
     String title = in.title() == null ? r.title() : in.title().strip();
+    if (note && title.isEmpty()) {
+      title = firstLine(description);
+    }
     if (title.isEmpty() || title.length() > 200) {
       throw ApiException.invalid("title", "Название: от 1 до 200 символов");
     }
-    String description = in.description() == null ? r.description() : in.description().strip();
+    // Ссылку можно поправить (1.0.4): тот же разбор, что при добавлении.
+    String url =
+        "link".equals(r.kind()) && in.url() != null && !in.url().isBlank()
+            ? link(in.url())
+            : r.url();
     Long folder =
         in.folderId() == null ? r.folderId() : (in.folderId() == 0 ? null : in.folderId());
     if (folder != null) {
@@ -595,11 +681,37 @@ public class MaterialService {
         LessonRef.check(db, access, actor, lesson, r.subjectId());
       }
     }
+    Long mainFile = r.fileId();
+    List<Long> extra = null;
+    if (in.fileIds() != null && "file".equals(r.kind())) {
+      // Состав темы (1.0.4): новые файлы – свои и ещё не прикреплённые; убранные уйдут уборкой.
+      List<Long> wanted = List.copyOf(new LinkedHashSet<>(in.fileIds()));
+      if (wanted.isEmpty()) {
+        throw ApiException.invalid("fileIds", "В материале должен остаться хотя бы один файл");
+      }
+      if (wanted.size() > TOPIC_MAX) {
+        throw ApiException.invalid("fileIds", "В теме – не больше " + TOPIC_MAX + " файлов");
+      }
+      Set<Long> current = new HashSet<>(extraFiles(id));
+      if (r.fileId() != null) {
+        current.add(r.fileId());
+      }
+      for (Long f : wanted) {
+        if (!current.contains(f)) {
+          requireOwnFree(actor, f);
+        }
+      }
+      mainFile = wanted.getFirst();
+      extra = wanted.subList(1, wanted.size());
+    }
     db.sql(
-            "UPDATE materials SET title = ?, description = ?, folder_id = ?, lesson_id = ?,"
-                + " updated_at = ? WHERE id = ?")
-        .params(title, description, folder, lesson, clock.millis(), id)
+            "UPDATE materials SET title = ?, description = ?, url = ?, folder_id = ?,"
+                + " lesson_id = ?, file_id = ?, updated_at = ? WHERE id = ?")
+        .params(title, description, url, folder, lesson, mainFile, clock.millis(), id)
         .update();
+    if (extra != null) {
+      setExtraFiles(id, extra);
+    }
     return get(actor, id);
   }
 
@@ -652,9 +764,13 @@ public class MaterialService {
     db.sql("DELETE FROM comments WHERE target_type = 'material' AND target_id = ?")
         .param(id)
         .update();
+    List<Long> extra = extraFiles(id);
     db.sql("DELETE FROM materials WHERE id = ?").param(id).update();
     if (r.fileId() != null) {
       files.find(r.fileId()).ifPresent(files::delete);
+    }
+    for (Long f : extra) {
+      files.find(f).ifPresent(files::delete);
     }
     audit.log(
         actor, groups.getFirst(), "material.delete", "material", id, Map.of("title", r.title()));
@@ -673,9 +789,14 @@ public class MaterialService {
           db.sql("UPDATE materials SET status = 'published' WHERE id = ?").param(id).update();
       case "reject" -> {
         db.sql("UPDATE materials SET status = 'rejected' WHERE id = ?").param(id).update();
+        List<Long> extra = extraFiles(id);
+        db.sql("DELETE FROM material_files WHERE material_id = ?").param(id).update();
         if (r.fileId() != null) {
           db.sql("UPDATE materials SET file_id = NULL WHERE id = ?").param(id).update();
           files.find(r.fileId()).ifPresent(files::delete);
+        }
+        for (Long f : extra) {
+          files.find(f).ifPresent(files::delete);
         }
       }
       case "hide" -> db.sql("UPDATE materials SET hidden = 1 WHERE id = ?").param(id).update();
@@ -744,6 +865,9 @@ public class MaterialService {
                   SELECT ? UNION ALL SELECT f.id FROM folders f JOIN tree t ON f.parent_id = t.id)
                 SELECT m.file_id FROM materials m WHERE m.folder_id IN (SELECT id FROM tree)
                   AND m.file_id IS NOT NULL
+                UNION
+                SELECT a.file_id FROM material_files a JOIN materials m ON m.id = a.material_id
+                WHERE m.folder_id IN (SELECT id FROM tree)
                 """)
             .param(folderId)
             .query(Long.class)
@@ -807,7 +931,10 @@ public class MaterialService {
     if (f.uploadedBy() != null && f.uploadedBy() == actor.id()) {
       return true;
     }
-    for (Row r : query("m.file_id = :f", Map.of("f", f.id()))) {
+    for (Row r :
+        query(
+            "(m.file_id = :f OR m.id IN (SELECT material_id FROM material_files WHERE file_id = :f))",
+            Map.of("f", f.id()))) {
       List<Long> groups = subjectStore.groupIds(r.subjectId());
       if (access.canSee(actor, groups) && visibleTo(actor, r, groups)) {
         return true;
@@ -851,6 +978,50 @@ public class MaterialService {
         return true;
       }
     }
+    // Картинка в комментарии (1.0.4) – тем, кто видит комментарий.
+    record C(String type, long target, boolean hidden, Long author) {}
+    List<C> comments =
+        db.sql(
+                """
+                SELECT c.target_type, c.target_id, c.hidden, c.author_id FROM comment_attachments a
+                JOIN comments c ON c.id = a.comment_id WHERE a.file_id = ?
+                """)
+            .param(f.id())
+            .query(
+                (rs, i) ->
+                    new C(
+                        rs.getString(1),
+                        rs.getLong(2),
+                        rs.getInt(3) != 0,
+                        Rows.longOrNull(rs, "author_id")))
+            .list();
+    for (C c : comments) {
+      List<Long> groups =
+          switch (c.type()) {
+            case "post" ->
+                db.sql("SELECT group_id FROM post_targets WHERE post_id = ?")
+                    .param(c.target())
+                    .query(Long.class)
+                    .list();
+            case "homework" ->
+                db.sql("SELECT group_id FROM homework_targets WHERE homework_id = ?")
+                    .param(c.target())
+                    .query(Long.class)
+                    .list();
+            default ->
+                db.sql("SELECT subject_id FROM materials WHERE id = ?")
+                    .param(c.target())
+                    .query(Long.class)
+                    .optional()
+                    .map(subjectStore::groupIds)
+                    .orElse(List.of());
+          };
+      boolean own = c.author() != null && c.author() == actor.id();
+      if (access.canSee(actor, groups)
+          && (!c.hidden() || own || access.can(actor, Permission.MODERATE_CONTENT, groups))) {
+        return true;
+      }
+    }
     return false;
   }
 
@@ -863,13 +1034,20 @@ public class MaterialService {
         || access.can(actor, Permission.PUBLISH_NEWS, groups);
   }
 
+  /** Может загрузить хотя бы картинку для комментария (1.0.4) – кто комментирует. */
+  public boolean canUploadPictures(Actor actor) {
+    return access.can(actor, Permission.COMMENT, access.visibleGroups(actor));
+  }
+
   /** Файл уже прикреплён: к материалу, заданию или новости — второй раз его не взять. */
   static boolean used(JdbcClient db, long fileId) {
     return db.sql(
                 "SELECT (SELECT count(*) FROM materials WHERE file_id = ?)"
                     + " + (SELECT count(*) FROM homework_attachments WHERE file_id = ?)"
-                    + " + (SELECT count(*) FROM post_attachments WHERE file_id = ?)")
-            .params(fileId, fileId, fileId)
+                    + " + (SELECT count(*) FROM post_attachments WHERE file_id = ?)"
+                    + " + (SELECT count(*) FROM comment_attachments WHERE file_id = ?)"
+                    + " + (SELECT count(*) FROM material_files WHERE file_id = ?)")
+            .params(fileId, fileId, fileId, fileId, fileId)
             .query(Integer.class)
             .single()
         > 0;
@@ -877,6 +1055,70 @@ public class MaterialService {
 
   private boolean attached(long fileId) {
     return used(db, fileId);
+  }
+
+  /** Файл загрузил сам человек, и он ещё нигде не прикреплён. */
+  private void requireOwnFree(Actor actor, long fileId) {
+    StoredFile f = files.find(fileId).orElseThrow(ApiException::notFound);
+    if (f.uploadedBy() == null || f.uploadedBy() != actor.id() || attached(f.id())) {
+      throw ApiException.forbidden("Этот файл нельзя прикрепить");
+    }
+  }
+
+  /** Остальные файлы темы (кроме основного), по порядку. */
+  private List<Long> extraFiles(long materialId) {
+    return db.sql("SELECT file_id FROM material_files WHERE material_id = ? ORDER BY position")
+        .param(materialId)
+        .query(Long.class)
+        .list();
+  }
+
+  private void setExtraFiles(long materialId, List<Long> ids) {
+    db.sql("DELETE FROM material_files WHERE material_id = ?").param(materialId).update();
+    for (int i = 0; i < ids.size(); i++) {
+      db.sql("INSERT INTO material_files (material_id, file_id, position) VALUES (?, ?, ?)")
+          .params(materialId, ids.get(i), i + 1)
+          .update();
+    }
+  }
+
+  /** Остальные файлы тем – по материалам. */
+  private Map<Long, List<FileInfo>> moreFiles(List<Long> materialIds) {
+    Map<Long, List<FileInfo>> out = new HashMap<>();
+    if (materialIds.isEmpty()) {
+      return out;
+    }
+    db.sql(
+            """
+            SELECT a.material_id, f.id, f.name, f.mime, f.size FROM material_files a
+            JOIN files f ON f.id = a.file_id
+            WHERE a.material_id IN (:ids) ORDER BY a.position
+            """)
+        .param("ids", materialIds)
+        .query(
+            (rs, i) -> {
+              out.computeIfAbsent(rs.getLong(1), k -> new ArrayList<>())
+                  .add(
+                      new FileInfo(rs.getLong(2), rs.getString(3), rs.getString(4), rs.getLong(5)));
+              return 0;
+            })
+        .list();
+    return out;
+  }
+
+  /**
+   * Название сообщения – первая строка текста, без разметки Markdown в начале («## План» → «План»).
+   */
+  static String firstLine(String text) {
+    String first =
+        text.strip()
+            .lines()
+            .findFirst()
+            .orElse("")
+            .replaceFirst("^\\s*(#{1,6}|[-*+>])\\s+", "")
+            .replaceAll("[*_`~]", "")
+            .strip();
+    return first.length() > 80 ? first.substring(0, 79).strip() + "…" : first;
   }
 
   private boolean isAuthor(Actor actor, Row r) {
@@ -907,6 +1149,7 @@ public class MaterialService {
                     .query(Long.class)
                     .list());
     List<Item> out = new ArrayList<>();
+    Map<Long, List<FileInfo>> more = moreFiles(rows.stream().map(Row::id).toList());
     for (Row r : rows) {
       List<Long> groups = groupsCache.computeIfAbsent(r.subjectId(), subjectStore::groupIds);
       boolean mod = access.can(actor, Permission.MODERATE_CONTENT, groups);
@@ -923,6 +1166,9 @@ public class MaterialService {
               r.kind(),
               r.title(),
               r.description(),
+              r.description() == null || r.description().isBlank()
+                  ? ""
+                  : Markdown.render(r.description()),
               r.url(),
               r.fileId() == null
                   ? null
@@ -935,7 +1181,8 @@ public class MaterialService {
               new Can(isAuthor(actor, r) || mod, isAuthor(actor, r) || mod, mod, pin),
               r.lessonId(),
               r.pinnedAt(),
-              dismissed.contains(r.id())));
+              dismissed.contains(r.id()),
+              more.getOrDefault(r.id(), List.of())));
     }
     return out;
   }
