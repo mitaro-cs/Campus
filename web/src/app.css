@@ -507,6 +507,13 @@ body {
 	-webkit-tap-highlight-color: transparent;
 }
 
+/* Подсказки клавиш (Esc, Ctrl Enter) – только где есть клавиатура: на телефоне они ни к чему. */
+@media (hover: none) and (pointer: coarse) {
+	.kbd-hint {
+		display: none !important;
+	}
+}
+
 /* iOS приближает страницу, когда фокус попадает в поле с шрифтом меньше 16 px. */
 @media (pointer: coarse) {
 	input,

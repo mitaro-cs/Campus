@@ -104,7 +104,7 @@
 
 	<button class="finder" onclick={() => openPalette()} title="Найти или перейти ({shortcut('K')})">
 		<Search size={17} />
-		{#if !collapsed}<span>Найти или перейти</span><kbd>{shortcut('K')}</kbd>{/if}
+		{#if !collapsed}<span>Найти или перейти</span><kbd class="kbd-hint">{shortcut('K')}</kbd>{/if}
 	</button>
 
 	<nav class="main">

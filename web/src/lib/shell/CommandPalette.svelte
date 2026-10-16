@@ -252,7 +252,7 @@
 					autocomplete="off"
 					spellcheck="false"
 				/>
-				<kbd>Esc</kbd>
+				<kbd class="kbd-hint">Esc</kbd>
 			</div>
 			<ul id="pal-list" role="listbox" aria-label="Результаты">
 				{#each results as r, i (r.id)}

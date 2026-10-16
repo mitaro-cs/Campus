@@ -3,6 +3,7 @@
 	import { offline } from '$lib/offline/engine';
 	import { del, get, patch, post, put as putApi } from '$lib/api';
 	import { fmtAgo } from '$lib/format';
+	import { shortcut } from '$lib/platform';
 	import { shortNames } from '$lib/names';
 	import { peek, put } from '$lib/cache';
 	import { currentGroup, groups, session } from '$lib/session.svelte';
@@ -214,7 +215,8 @@
 						bind:value={draft}
 						onkeydown={(e) => editKeys(e, c)}></textarea>
 					<div class="row">
-						<span class="faint small">Ctrl+Enter – сохранить, Esc – отменить</span>
+						<span class="faint small kbd-hint">{shortcut('Enter')} – сохранить, Esc – отменить</span
+						>
 						<span class="spacer"></span>
 						<Button size="s" onclick={() => (editing = null)}>Отмена</Button>
 						<Button
