@@ -1372,6 +1372,20 @@ button.list-row:active {
 ::view-transition-old(bottom-nav) {
 	display: none;
 }
+/* Верхняя панель телефона на страницах деталей уступает место «← Раздел»: уходит и возвращается
+   растворением, а не пропадает рывком (old/new без пары – :only-child). */
+::view-transition-old(top-bar):only-child {
+	display: block;
+	animation: vt-fade 200ms var(--ease) reverse both;
+}
+::view-transition-new(top-bar):only-child {
+	animation: vt-fade 260ms var(--ease) both;
+}
+@keyframes vt-fade {
+	from {
+		opacity: 0;
+	}
+}
 /* Смена раздела: фон и панели – без растворения (смена темы – lib/theme.ts – растворяет). */
 :root[data-nav]::view-transition-old(root),
 :root[data-nav]::view-transition-new(root),
@@ -1383,9 +1397,10 @@ button.list-row:active {
 ::view-transition-new(root) {
 	animation-duration: 240ms;
 }
-/* Подсветка пунктов панелей на время смены раздела – сразу: снимок новой страницы иначе ловил
-   начало плавной смены цвета, и после перехода старая подсветка мигала и гасла (1.0.4). */
-:root[data-nav] :is(.sidebar, .bottom-nav) * {
+/* Подсветка пунктов боковой панели на время смены раздела – сразу: снимок новой страницы иначе
+   ловил начало плавной смены цвета, и после перехода старая подсветка мигала и гасла (1.0.4).
+   Нижняя панель телефона – свой живой слой: белый круг там перетекает к вкладке. */
+:root[data-nav] .sidebar * {
 	transition: none !important;
 }
 ::view-transition-old(page) {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { ChevronLeft } from '@lucide/svelte';
+	import { backOwn } from './ownBack';
 
 	/** Свайп от левого края назад – для телефонов и PWA без системного жеста. */
 	let start: { x: number; y: number } | null = null;
@@ -22,7 +23,7 @@
 		dx = Math.max(0, Math.min(120, t.clientX - start.x));
 	}
 	function ontouchend() {
-		if (start && dx > 80) history.back();
+		if (start && dx > 80) backOwn();
 		start = null;
 		dx = 0;
 	}

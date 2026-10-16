@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { ArrowLeft } from '@lucide/svelte';
+	import { backOwn } from '$lib/shell/ownBack';
 
 	// Шапка страницы деталей: «← Раздел» и действия справа (как «← Austria  [Map]»).
 	let { href, label, children }: { href: string; label: string; children?: Snippet } = $props();
@@ -13,7 +14,7 @@
 		onclick={(e) => {
 			if (history.length > 1) {
 				e.preventDefault();
-				history.back();
+				backOwn();
 			}
 		}}
 	>

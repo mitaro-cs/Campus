@@ -766,3 +766,8 @@ SemVer (бета младше выпуска). Заметки – раздел `
   проверка «к паре» `LessonRef`.
 - Подсказки клавиш (1.0.4) – класс `.kbd-hint` (app.css): на сенсорных экранах без мыши скрыт.
   Не называйте так другое; `.keys` занят (`PasskeysPanel`, `Hotkeys`).
+- Телефон (1.0.4): своё «назад» (`BackBar`, `SwipeBack`) – `shell/ownBack.ts backOwn()`: переход
+  (`transition.ts`) отличает его от системного жеста Safari и анимирует. Круг нижней панели едет
+  `transform` (`container-type` у `.bottom-nav`, `100cqw`); правило «без переходов при `data-nav`» –
+  только для `.sidebar`. Верхняя панель без пары в переходе – `::view-transition-old/new(top-bar):only-child`.
+  `offline/files.ts` – лениво из `engine.ts` (бюджет «Сегодня»).
