@@ -153,7 +153,8 @@ public class LiveUpdates implements DisposableBean, SmartLifecycle {
         clients.forEach(c -> send(c, "change", seq(seq)));
       } else if (System.currentTimeMillis() - lastPing > PING_MS) {
         lastPing = System.currentTimeMillis();
-        clients.forEach(this::ping);
+        String beat = seq(seq);
+        clients.forEach(c -> ping(c, beat));
       }
     } catch (RuntimeException ex) {
       // База занята записью — проверим через секунду.
@@ -249,10 +250,14 @@ public class LiveUpdates implements DisposableBean, SmartLifecycle {
     }
   }
 
-  private void ping(Client c) {
+  /**
+   * Пульс (1.0.4) – событием с номером состояния, а не комментарием: страница видит, что поток жив
+   * (молчит дольше минуты – переподключается сама), и сверяет номер, если «change» потерялся.
+   */
+  private void ping(Client c, String seq) {
     synchronized (c) {
       try {
-        c.emitter().send(SseEmitter.event().comment("ping"));
+        c.emitter().send(SseEmitter.event().name("ping").data(seq));
       } catch (IOException | IllegalStateException ex) {
         drop(c);
       }

@@ -14,6 +14,11 @@ import { loadPresence } from './presence.svelte';
  * поток не доходит (туннель копит ответ – «hello» не пришло за 8 секунд), раз в 3 секунды
  * спрашиваем короткий номер состояния (`/api/live/seq`) и перечитываем страницу, только когда он
  * сменился (1.0.2: раньше раз в 10 секунд перечитывали всё вслепую – комментарии запаздывали).
+ *
+ * Поток не должен умирать молча (1.0.4): ответ с ошибкой (перезапуск хоста, страница туннеля)
+ * закрывает EventSource навсегда – открываем заново с паузой; сервер шлёт «ping» раз в 25 с – нет
+ * ничего дольше минуты (телефон спал, соединение повисло) – переподключаемся; вернулись на вкладку
+ * или в сеть – проверяем сразу. Номер из «ping» сверяем: потерянный «change» тоже догоняется.
  */
 export function startLive(): () => void {
 	if (typeof EventSource === 'undefined') return () => {};
@@ -24,6 +29,12 @@ export function startLive(): () => void {
 	let pollTimer: ReturnType<typeof setInterval> | undefined;
 	let hideTimer: ReturnType<typeof setTimeout> | undefined;
 	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+	let retryTimer: ReturnType<typeof setTimeout> | undefined;
+	/** Когда поток последний раз подавал голос (любое событие, включая «ping»). */
+	let heard = 0;
+	/** Пауза перед повторным подключением после ошибки: 2, 4, 8… до 30 с. */
+	let backoff = 2_000;
+	const SILENT = 60_000;
 
 	// Несколько изменений подряд (задание с файлами) – одно перечитывание.
 	function refresh() {
@@ -82,35 +93,85 @@ export function startLive(): () => void {
 		}
 	}
 
+	/** Номер состояния с сервера: отличается – перечитываем (номер может и уменьшиться – копия на
+	 *  втором компьютере хоста взяла снимок). */
+	function seen(seq: number) {
+		if (lastSeq && seq && seq !== lastSeq) refresh();
+		if (seq) lastSeq = seq;
+	}
+
 	function open() {
 		if (source || polling) return;
-		source = new EventSource('/api/live');
+		clearTimeout(retryTimer);
+		retryTimer = undefined;
+		const s = new EventSource('/api/live');
+		source = s;
+		heard = Date.now();
 		helloTimer = setTimeout(fallBack, 8000);
-		source.addEventListener('hello', (e) => {
+		const alive = () => {
+			heard = Date.now();
+		};
+		s.addEventListener('ping', (e) => {
+			alive();
+			seen(seqOf(e as MessageEvent));
+		});
+		s.onerror = () => {
+			// Обычный обрыв EventSource переподключает сам (CONNECTING); ответ с ошибкой – CLOSED, и
+			// дальше он молчит навсегда: открываем заново сами.
+			if (source !== s || s.readyState !== EventSource.CLOSED) return;
+			close();
+			retryTimer = setTimeout(open, backoff);
+			// Пока потока нет – не пропустить изменения: перечитаем, когда он вернётся (hello).
+			backoff = Math.min(backoff * 2, 30_000);
+		};
+		s.addEventListener('hello', (e) => {
 			clearTimeout(helloTimer);
+			alive();
+			backoff = 2_000;
 			restarting(!!data(e as MessageEvent).restarting);
-			const seq = seqOf(e as MessageEvent);
-			// Переподключились после обрыва, а на сервере уже что-то новое (номер может и уменьшиться –
-			// копия на втором компьютере хоста взяла снимок).
-			if (lastSeq && seq !== lastSeq) refresh();
-			lastSeq = seq;
+			// Переподключились после обрыва, а на сервере уже что-то новое.
+			seen(seqOf(e as MessageEvent));
 			loadPresence(true);
 		});
 		// Кто-то открыл или закрыл сайт (1.0.2) – «на сайте» и точки у участников.
-		source.addEventListener('presence', () => loadPresence(true));
-		source.addEventListener('change', (e) => {
-			lastSeq = seqOf(e as MessageEvent);
+		s.addEventListener('presence', () => {
+			alive();
+			loadPresence(true);
+		});
+		s.addEventListener('change', (e) => {
+			alive();
+			lastSeq = seqOf(e as MessageEvent) || lastSeq;
 			refresh();
 		});
-		source.addEventListener('bell', () => refreshUnread());
-		source.addEventListener('restarting', () => restarting(true));
-		// Обрыв – EventSource переподключится сам.
+		s.addEventListener('bell', () => {
+			alive();
+			refreshUnread();
+		});
+		s.addEventListener('restarting', () => {
+			alive();
+			restarting(true);
+		});
 	}
 
 	function close() {
 		clearTimeout(helloTimer);
+		clearTimeout(retryTimer);
+		retryTimer = undefined;
 		source?.close();
 		source = null;
+	}
+
+	/** Поток открыт, но молчит дольше минуты (повис после сна, туннель потерял его) – заново. */
+	function revive() {
+		if (polling || document.visibilityState !== 'visible') return;
+		if (!source) {
+			if (!retryTimer) open();
+			return;
+		}
+		if (Date.now() - heard > SILENT) {
+			close();
+			open();
+		}
 	}
 
 	function fallBack() {
@@ -143,16 +204,30 @@ export function startLive(): () => void {
 				open();
 				refresh();
 			} else if (polling) refresh();
+			else revive();
 		} else {
 			hideTimer = setTimeout(close, 30_000);
 		}
 	}
 
+	// Сеть вернулась – поток мог умереть, пока её не было: открываем заново и перечитываем.
+	function onOnline() {
+		if (polling || document.visibilityState !== 'visible') return;
+		close();
+		backoff = 2_000;
+		open();
+		refresh();
+	}
+
 	open();
+	const watchTimer = setInterval(revive, 15_000);
 	document.addEventListener('visibilitychange', onVisibility);
+	addEventListener('online', onOnline);
 	return () => {
 		close();
 		clearInterval(pollTimer);
+		clearInterval(watchTimer);
+		removeEventListener('online', onOnline);
 		clearTimeout(hideTimer);
 		clearTimeout(refreshTimer);
 		clearTimeout(stuck);
