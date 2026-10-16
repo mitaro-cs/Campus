@@ -8,6 +8,7 @@ import app.groupbase.content.Access;
 import app.groupbase.content.HomeworkService;
 import app.groupbase.content.MaterialService;
 import app.groupbase.content.NewsService;
+import app.groupbase.content.SubgroupLessons;
 import app.groupbase.content.SubjectService;
 import app.groupbase.store.GroupStore;
 import app.groupbase.store.Rows;
@@ -309,8 +310,13 @@ public class LessonService {
         new StringBuilder("l.group_id IN (:g) AND l.starts_at < :to AND l.ends_at > :from");
     if (subject != null) {
       subjects.visible(actor, subject);
-      p.put("subject", subject);
-      where.append(" AND l.subject_id = :subject");
+      // У подгруппы – и общие пары предмета (SubgroupLessons, 1.0.4).
+      List<Long> ids = SubgroupLessons.ids(db, subject, scope);
+      if (ids.isEmpty()) {
+        return List.of();
+      }
+      p.put("lessons", ids);
+      where.append(" AND l.id IN (:lessons)");
     } else {
       where.append(
           " AND NOT EXISTS (SELECT 1 FROM subject_hidden sh"

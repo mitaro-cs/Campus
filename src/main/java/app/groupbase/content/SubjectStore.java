@@ -242,6 +242,19 @@ public class SubjectStore {
             rs -> {
               out.put(rs.getLong(1), rs.getInt(2));
             });
+    // У подгрупп – ещё общие пары предмета (1.0.4): иначе у «№2» не было бы вкладки «Расписание».
+    db.sql("SELECT id, name FROM subjects WHERE id IN (:ids)")
+        .param("ids", subjectIds)
+        .query(
+            rs -> {
+              if (SubjectService.subgroupOf(rs.getString(2)) > 0) {
+                long id = rs.getLong(1);
+                int n = SubgroupLessons.ids(db, id, groupIds).size();
+                if (n > 0) {
+                  out.put(id, n);
+                }
+              }
+            });
     return out;
   }
 

@@ -760,3 +760,7 @@ SemVer (бета младше выпуска). Заметки – раздел `
   `VapidKeys.PROJECT`, ссылка выпуска в `StatusController`, `tauri.conf.json` (обновление
   оболочки). `UpdateCheck` идёт по перенаправлениям (`Redirect.NORMAL`): на старый адрес GitHub
   отвечал 301, и проверка обновлений падала (1.0.2).
+- Пары подгрупп (1.0.4): `content/SubgroupLessons.ids` – у «№N» свои пары, пары других подгрупп
+  того же предмета и пары без предмета с тем же названием, кроме помеченных чужим номером
+  («(1 подгр.)»). Им пользуются `LessonService.list` (`?subject=`), `SubjectStore.lessonCounts` и
+  проверка «к паре» `LessonRef`.
