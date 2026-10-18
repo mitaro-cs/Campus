@@ -666,22 +666,20 @@
 			transform: translateY(14px);
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.dim,
-		.hole,
-		.hello,
-		.coach,
-		.body,
-		.finale,
-		.finale *,
-		.logo * {
-			animation: none !important;
-			transition: none !important;
-		}
-		.confetti,
-		.orbit,
-		.sparks {
-			display: none;
-		}
+	:global(:root[data-motion='reduce']) .dim,
+	:global(:root[data-motion='reduce']) .hole,
+	:global(:root[data-motion='reduce']) .hello,
+	:global(:root[data-motion='reduce']) .coach,
+	:global(:root[data-motion='reduce']) .body,
+	:global(:root[data-motion='reduce']) .finale,
+	:global(:root[data-motion='reduce']) .finale *,
+	:global(:root[data-motion='reduce']) .logo * {
+		animation: none !important;
+		transition: none !important;
+	}
+	:global(:root[data-motion='reduce']) .confetti,
+	:global(:root[data-motion='reduce']) .orbit,
+	:global(:root[data-motion='reduce']) .sparks {
+		display: none;
 	}
 </style>

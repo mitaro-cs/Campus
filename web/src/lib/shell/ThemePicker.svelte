@@ -29,6 +29,7 @@
 	import { session } from '$lib/session.svelte';
 	import { post } from '$lib/api';
 	import { SCALES, readScale, setScale } from '$lib/uiScale';
+	import { motionPref, setMotion, type MotionPref } from '$lib/motionPref';
 	import { toast } from '$lib/toasts.svelte';
 	import Button from '$lib/ui/Button.svelte';
 
@@ -158,6 +159,17 @@
 
 	/** Образец цвета – ярким, как на кнопке. */
 	const dot = (hue: number) => oklch(0.62, 0.25, hue);
+	// Анимации (1.0.6): по умолчанию – всегда; системное «уменьшить движение» – по выбору.
+	const MOTIONS: { value: MotionPref; label: string }[] = [
+		{ value: 'on', label: 'Всегда' },
+		{ value: 'system', label: 'По системе' },
+		{ value: 'off', label: 'Выключены' }
+	];
+	let motion = $state<MotionPref>(motionPref());
+	function pickMotion(m: MotionPref) {
+		motion = m;
+		setMotion(m);
+	}
 	const satLabel = $derived(
 		accent.sat < 25 ? 'спокойно' : accent.sat < 55 ? 'мягко' : accent.sat < 80 ? 'ярко' : 'сочно'
 	);
@@ -178,6 +190,23 @@
 					<m.icon size={16} />
 					{m.label}
 				</button>
+			{/each}
+		</div>
+	</div>
+
+	<div>
+		<p class="label" id="motion-label">
+			Анимации <span class="faint">· только на этом устройстве</span>
+		</p>
+		<div class="zooms" role="radiogroup" aria-labelledby="motion-label">
+			{#each MOTIONS as m (m.value)}
+				<button
+					type="button"
+					role="radio"
+					aria-checked={motion === m.value}
+					class:on={motion === m.value}
+					onclick={() => pickMotion(m.value)}>{m.label}</button
+				>
 			{/each}
 		</div>
 	</div>
@@ -915,10 +944,8 @@
 	.design.on .ic img {
 		transform: scale(1.06);
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.c,
-		.ic img {
-			transition: none;
-		}
+	:global(:root[data-motion='reduce']) .c,
+	:global(:root[data-motion='reduce']) .ic img {
+		transition: none;
 	}
 </style>

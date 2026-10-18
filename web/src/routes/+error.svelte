@@ -205,15 +205,13 @@
 			transform: translate(-10px, 14px) rotate(-11deg);
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.tile,
-		.ball,
-		.badge {
-			animation: none;
-		}
-		.globe {
-			animation: none;
-			transform: translate(-10px, 14px) rotate(-11deg);
-		}
+	:global(:root[data-motion='reduce']) .tile,
+	:global(:root[data-motion='reduce']) .ball,
+	:global(:root[data-motion='reduce']) .badge {
+		animation: none;
+	}
+	:global(:root[data-motion='reduce']) .globe {
+		animation: none;
+		transform: translate(-10px, 14px) rotate(-11deg);
 	}
 </style>

@@ -208,9 +208,7 @@
 			transform: scaleY(0);
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.bar {
-			animation: none;
-		}
+	:global(:root[data-motion='reduce']) .bar {
+		animation: none;
 	}
 </style>

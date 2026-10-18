@@ -130,12 +130,10 @@
 			transform: scale(0.82);
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.pill {
-			transition: none;
-		}
-		a.on .icon {
-			animation: none;
-		}
+	:global(:root[data-motion='reduce']) .pill {
+		transition: none;
+	}
+	:global(:root[data-motion='reduce']) a.on .icon {
+		animation: none;
 	}
 </style>

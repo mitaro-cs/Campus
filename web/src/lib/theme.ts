@@ -1,3 +1,5 @@
+import { reducedMotion } from './motionPref';
+
 export type Theme = 'system' | 'light' | 'dark';
 const KEY = 'gb-theme';
 
@@ -16,8 +18,7 @@ export function currentTheme(): Theme {
  * сразу, и боковая панель мерцала. Нет поддержки или «меньше движения» – сразу.
  */
 export function smoothly(apply: () => void) {
-	if (document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches)
-		document.startViewTransition(apply);
+	if (document.startViewTransition && !reducedMotion()) document.startViewTransition(apply);
 	else apply();
 }
 

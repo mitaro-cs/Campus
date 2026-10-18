@@ -318,10 +318,8 @@
 			transform: rotate(360deg);
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.flow.moving,
-		.spinner {
-			animation: none;
-		}
+	:global(:root[data-motion='reduce']) .flow.moving,
+	:global(:root[data-motion='reduce']) .spinner {
+		animation: none;
 	}
 </style>

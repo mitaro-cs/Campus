@@ -201,11 +201,9 @@
 			transform: translateY(10px) scale(0.85);
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.thumb {
-			animation: none;
-			transition: none;
-		}
+	:global(:root[data-motion='reduce']) .thumb {
+		animation: none;
+		transition: none;
 	}
 	.thumb :global(.fill) {
 		position: absolute;

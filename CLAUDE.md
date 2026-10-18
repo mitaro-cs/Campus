@@ -805,4 +805,9 @@ SemVer (бета младше выпуска). Заметки – раздел `
   `content/commentPics.ts` по выбору файла.
 - Загрузка файлов без права выкладывать (1.0.6): кто комментирует, может загрузить только
   картинку – `FileController.upload` проверяет тип по содержимому и иначе удаляет файл (403).
+- Анимации (1.0.6, просьба владельца): `lib/motionPref.ts` – `gb-motion` (`on` по умолчанию,
+  `system`, `off`) → `data-motion="reduce|full"` на `<html>` (ставит и скрипт в app.html). CSS – только
+  `:root[data-motion='reduce']` (в Svelte – `:global(...)`), JS – `reducedMotion()`; **не**
+  `@media (prefers-reduced-motion)` и не `matchMedia` напрямую: в Windows «Эффекты анимации» часто
+  выключены, и Campus был без анимаций. Выбор – `ThemePicker` («Анимации»), e2e – `36-motion`.
 

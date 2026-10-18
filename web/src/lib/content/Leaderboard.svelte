@@ -451,9 +451,7 @@
 			display: none !important;
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.step {
-			animation: none;
-		}
+	:global(:root[data-motion='reduce']) .step {
+		animation: none;
 	}
 </style>

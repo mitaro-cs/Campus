@@ -1,15 +1,12 @@
 import { cubicOut } from 'svelte/easing';
 import * as t from 'svelte/transition';
 import { flip as svelteFlip } from 'svelte/animate';
+import { reducedMotion } from './motionPref';
 
-/** Анимации интерфейса: 150–250 мс, cubic-out, выключаются при prefers-reduced-motion. */
+/** Анимации интерфейса: 150–250 мс, cubic-out; выключаются настройкой «Анимации» (motionPref). */
 export const DURATION = 200;
 
-function reduced(): boolean {
-	return (
-		typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
-	);
-}
+const reduced = reducedMotion;
 
 const d = (ms?: number) => (reduced() ? 0 : (ms ?? DURATION));
 

@@ -704,11 +704,9 @@
 			opacity: 0;
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.demo *,
-		.demo *::before {
-			animation-play-state: paused !important;
-			animation-delay: -3.5s !important;
-		}
+	:global(:root[data-motion='reduce']) .demo *,
+	:global(:root[data-motion='reduce']) .demo *::before {
+		animation-play-state: paused !important;
+		animation-delay: -3.5s !important;
 	}
 </style>

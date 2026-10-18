@@ -27,6 +27,19 @@
 			crossorigin
 		/>
 		<script>
+			// Анимации (1.0.6, lib/motionPref.ts): по умолчанию – всегда, «system» – как в системе, «off».
+			(function () {
+				var m = 'on';
+				try {
+					m = localStorage.getItem('gb-motion') || 'on';
+				} catch (e) {}
+				var reduce =
+					m === 'off' ||
+					(m === 'system' &&
+						!!window.matchMedia &&
+						matchMedia('(prefers-reduced-motion: reduce)').matches);
+				document.documentElement.setAttribute('data-motion', reduce ? 'reduce' : 'full');
+			})();
 			try {
 				var t = localStorage.getItem('gb-theme');
 				if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
@@ -571,18 +584,16 @@
 					display: inline;
 					animation: sp-pop 520ms cubic-bezier(0.2, 0.9, 0.25, 1.4) 250ms both;
 				}
-				@media (prefers-reduced-motion: reduce) {
-					#splash *,
-					#splash .sp {
-						animation: none !important;
-						transition: none !important;
-					}
-					#splash .ring,
-					#splash .glow,
-					#splash .gloss,
-					#splash .hint {
-						display: none;
-					}
+				:root[data-motion='reduce'] #splash *,
+				:root[data-motion='reduce'] #splash .sp {
+					animation: none !important;
+					transition: none !important;
+				}
+				:root[data-motion='reduce'] #splash .ring,
+				:root[data-motion='reduce'] #splash .glow,
+				:root[data-motion='reduce'] #splash .gloss,
+				:root[data-motion='reduce'] #splash .hint {
+					display: none;
 				}
 			</style>
 			<div class="sp">
@@ -795,14 +806,14 @@
 				});
 			})();
 			// Вращение глобуса: меридианы через 30° плывут слева направо и гаснут у краёв. Пока скрипт
-			// не запустился (или движение отключено в системе) – неподвижная сетка, как на логотипе.
+			// не запустился (или анимации выключены) – неподвижная сетка, как на логотипе.
 			(function () {
 				var splash = document.getElementById('splash');
 				var still = splash && splash.querySelector('.mer');
 				if (
 					!still ||
 					!window.requestAnimationFrame ||
-					(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)
+					document.documentElement.getAttribute('data-motion') === 'reduce'
 				)
 					return;
 				var ball = splash.querySelector('.ball');

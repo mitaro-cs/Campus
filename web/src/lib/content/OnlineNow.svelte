@@ -65,9 +65,7 @@
 			box-shadow: 0 0 0 5px color-mix(in srgb, var(--ok, #22a06b) 8%, transparent);
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.dot {
-			animation: none;
-		}
+	:global(:root[data-motion='reduce']) .dot {
+		animation: none;
 	}
 </style>

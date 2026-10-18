@@ -465,10 +465,8 @@
 		opacity: 0.3;
 	}
 }
-@media (prefers-reduced-motion: reduce) {
-	:root.revealing :is(.shell, main.auth) {
-		animation: none;
-	}
+:root[data-motion='reduce'].revealing :is(.shell, main.auth) {
+	animation: none;
 }
 
 *,
@@ -1009,15 +1007,13 @@ button {
 	border-top: 1px solid var(--border);
 }
 
-@media (prefers-reduced-motion: reduce) {
-	*,
-	*::before,
-	*::after {
-		animation-duration: 0.01ms !important;
-		animation-iteration-count: 1 !important;
-		transition-duration: 0.01ms !important;
-		scroll-behavior: auto !important;
-	}
+:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after {
+	animation-duration: 0.01ms !important;
+	animation-iteration-count: 1 !important;
+	transition-duration: 0.01ms !important;
+	scroll-behavior: auto !important;
 }
 
 /* Поля ввода */
@@ -1294,11 +1290,9 @@ main.login-bg-night,
 			#0f141d;
 	}
 }
-@media (prefers-reduced-motion: reduce) {
-	main.login-bg-aurora,
-	.login-bg-aurora {
-		animation: none;
-	}
+:root[data-motion='reduce'] main.login-bg-aurora,
+:root[data-motion='reduce'] .login-bg-aurora {
+	animation: none;
 }
 
 /* Карточки-ссылки чуть приподнимаются под курсором и «вдавливаются» при нажатии. */
@@ -1322,11 +1316,9 @@ a.list-row:active,
 button.list-row:active {
 	transform: scale(0.99);
 }
-@media (prefers-reduced-motion: reduce) {
-	a.card,
-	button.card {
-		transition: none;
-	}
+:root[data-motion='reduce'] a.card,
+:root[data-motion='reduce'] button.card {
+	transition: none;
 }
 
 /* Полос прокрутки нет нигде (0.9.6, просьба владельца): прокрутка колёсиком, пальцем и

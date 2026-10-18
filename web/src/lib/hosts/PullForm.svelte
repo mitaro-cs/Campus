@@ -194,10 +194,8 @@
 			transform: rotate(360deg);
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.progress .indeterminate,
-		.spinner {
-			animation: none;
-		}
+	:global(:root[data-motion='reduce']) .progress .indeterminate,
+	:global(:root[data-motion='reduce']) .spinner {
+		animation: none;
 	}
 </style>

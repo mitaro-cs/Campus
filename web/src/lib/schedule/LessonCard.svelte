@@ -219,10 +219,8 @@
 			opacity: 0.6;
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.dot {
-			animation: none;
-		}
+	:global(:root[data-motion='reduce']) .dot {
+		animation: none;
 	}
 	.chip.soon {
 		background: var(--amber-soft);

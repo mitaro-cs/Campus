@@ -67,9 +67,7 @@
 			transform: translateY(-4px);
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.tip {
-			animation: none;
-		}
+	:global(:root[data-motion='reduce']) .tip {
+		animation: none;
 	}
 </style>

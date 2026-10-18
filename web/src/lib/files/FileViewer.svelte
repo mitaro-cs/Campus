@@ -6,6 +6,7 @@
 	import FileIcon from '$lib/content/FileIcon.svelte';
 	import { closeViewer, viewer } from './viewer.svelte';
 	import { saveFile } from './save';
+	import { reducedMotion } from '$lib/motionPref';
 
 	// Просмотр файлов поверх приложения: картинки, PDF, видео, аудио и текст открываются сразу,
 	// без скачивания и без выхода из приложения. Остальное – «Скачать».
@@ -60,7 +61,7 @@
 
 	// Смена файла (1.0.3): прежний уезжает в сторону листания, новый въезжает следом – оба видны
 	// одновременно (в .stage они в одной ячейке сетки), а не прежний исчезает, а новый появляется.
-	const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+	const still = reducedMotion;
 	function slide(_: Element, { out }: { out: boolean }) {
 		const side = out ? -dir : dir;
 		return {
@@ -407,11 +408,9 @@
 			transform: translateY(6px) scale(0.98);
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.content {
-			animation: none;
-			transition: none;
-		}
+	:global(:root[data-motion='reduce']) .content {
+		animation: none;
+		transition: none;
 	}
 	.content.pdf {
 		width: min(100%, 980px);

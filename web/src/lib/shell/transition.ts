@@ -1,5 +1,6 @@
 import type { OnNavigate } from '@sveltejs/kit';
 import { takeOwnBack } from './ownBack';
+import { reducedMotion } from '$lib/motionPref';
 
 /**
  * Переход между разделами (1.0.2): новая страница въезжает сбоку – по порядку разделов в нижней
@@ -35,7 +36,7 @@ export function transition(nav: OnNavigate): Promise<void> | void {
 		!to ||
 		from === to ||
 		(SUBJECT.test(from) && SUBJECT.test(to)) || // предмет → предмет анимирует сама страница
-		matchMedia('(prefers-reduced-motion: reduce)').matches ||
+		reducedMotion() ||
 		// Safari в браузере: жест «назад» уже анимирован системой – второй раз не нужно (своя
 		// кнопка «←» и свой жест – не он: ownBack.ts).
 		(nav.type === 'popstate' &&

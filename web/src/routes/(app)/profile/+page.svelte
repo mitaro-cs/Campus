@@ -56,7 +56,7 @@
 		{
 			value: 'appearance',
 			label: 'Оформление',
-			desc: 'Тема, дизайн и цвет',
+			desc: 'Тема, дизайн, цвет и анимации',
 			icon: Palette,
 			tone: 'violet',
 			part: 'app'

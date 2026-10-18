@@ -121,11 +121,9 @@
 			opacity: 0;
 		}
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.on svg,
-		.burst {
-			animation: none;
-			display: none;
-		}
+	:global(:root[data-motion='reduce']) .on svg,
+	:global(:root[data-motion='reduce']) .burst {
+		animation: none;
+		display: none;
 	}
 </style>

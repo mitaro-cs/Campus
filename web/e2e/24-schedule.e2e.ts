@@ -81,7 +81,7 @@ test('расписание из файла календаря: загрузка,
 	const p2 = (n: number) => String(n).padStart(2, '0');
 	const tomorrow = `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}`;
 	await page.goto(`/schedule?view=week&week=${tomorrow}`);
-	await expect(page.locator('.parity')).toContainText(/чётная неделя \(\d+\)/);
+	await expect(page.locator('.parity')).toContainText(/чётная неделя \(\d+\)/i);
 	await expect(
 		page.getByRole('link', { name: /^Математический анализ, \d/ }).first()
 	).toBeVisible();

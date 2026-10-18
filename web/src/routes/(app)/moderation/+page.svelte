@@ -527,9 +527,7 @@
 		justify-content: center;
 		margin-top: var(--s3);
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.calm-icon {
-			animation: none;
-		}
+	:global(:root[data-motion='reduce']) .calm-icon {
+		animation: none;
 	}
 </style>
