@@ -810,4 +810,9 @@ SemVer (бета младше выпуска). Заметки – раздел `
   `:root[data-motion='reduce']` (в Svelte – `:global(...)`), JS – `reducedMotion()`; **не**
   `@media (prefers-reduced-motion)` и не `matchMedia` напрямую: в Windows «Эффекты анимации» часто
   выключены, и Campus был без анимаций. Выбор – `ThemePicker` («Анимации»), e2e – `36-motion`.
-
+- Свой сервер (1.0.6): `deploy/server/install.sh` – Java 21, Caddy, служба `campus` (systemd,
+  `/etc/campus.env`, данные – `/var/lib/campus/data`, jar – `/opt/campus`, из выпуска
+  `releases/latest/download/groupbase.jar`), `CAMPUS_RESTORE` – копия хоста до первого запуска;
+  `update.sh` – копия, новый jar, нет `/api/health` за минуту – откат. Инструкция – `docs/server.md`.
+  Cloudflare Pages и подобные не подходят (нужны JVM и диск). Ссылки установки идут на ветку
+  `miaro` – скрипт там должен быть рабочим.

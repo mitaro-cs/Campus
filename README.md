@@ -352,6 +352,11 @@ QR-код.
 <details>
 <summary>Campus на VPS или домашнем мини-ПК – для опытных</summary>
 
+**Проще всего** – одной командой на VPS с Ubuntu, вместе с переносом группы из копии:
+[docs/server.md](docs/server.md). Cloudflare Pages и подобные не подойдут – нужен сервер с Java
+и диском.
+
+Вручную:
 Нужны **JDK 21+** и **Node.js 22+** (или готовый `groupbase.jar` со страницы выпуска – тогда только
 Java).
 
