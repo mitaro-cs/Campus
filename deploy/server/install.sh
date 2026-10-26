@@ -29,6 +29,16 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -y -q curl ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https unzip
 
+# Бесплатные серверы (Google e2-micro) – 1 ГБ памяти: Java и Caddy не влезут без подкачки.
+if [ "$(awk '/MemTotal/ {print $2}' /proc/meminfo)" -lt 1600000 ] && [ -z "$(swapon --noheadings)" ]; then
+	say "Подкачка 2 ГБ (памяти мало)"
+	fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+	chmod 600 /swapfile
+	mkswap /swapfile >/dev/null
+	swapon /swapfile
+	grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >>/etc/fstab
+fi
+
 say "Java 21"
 if ! java -version 2>&1 | grep -qE 'version "(2[1-9]|[3-9][0-9])'; then
 	if ! apt-get install -y -q openjdk-21-jre-headless; then
@@ -149,6 +159,14 @@ systemctl reload caddy || systemctl restart caddy
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
 	ufw allow 80/tcp >/dev/null
 	ufw allow 443/tcp >/dev/null
+fi
+# Oracle Cloud: в образе Ubuntu iptables отклоняет всё, кроме SSH.
+if command -v iptables >/dev/null && iptables -S INPUT 2>/dev/null | grep -q -- '-j REJECT'; then
+	for port in 443 80; do
+		iptables -C INPUT -p tcp --dport "$port" -j ACCEPT 2>/dev/null ||
+			iptables -I INPUT 1 -p tcp --dport "$port" -j ACCEPT
+	done
+	command -v netfilter-persistent >/dev/null && netfilter-persistent save >/dev/null 2>&1 || true
 fi
 
 say "Ждём запуска"
